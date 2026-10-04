@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 1 | Design | `docs/design.md` | ✅ อนุมัติ 2026-10-05 · เพิ่มหัวข้อ 12 (รับไฟล์ image) หลังอนุมัติ |
 | 2 | โครงโฟลเดอร์ + แผน | `docs/plan.md` v3 (Task 1–14 + ส่วน B1–B4) · สรุป API + diagram 8 ภาพ: `docs/api.md` | ✅ อนุมัติ 2026-10-05 |
-| 3 | โค้ด + เทสต์ (ของปลอม ไม่เปิด sim) | plan Task 1–12 · pytest ผ่าน · แก้ drone-sitl + หลักฐาน | ✅ Task 1–12 เสร็จ · review ทั้ง branch แล้ว (แก้ Important 3 + docs routes ใน `f266435`) · flight-service 94 tests ผ่าน · drone-sitl 255 ผ่าน (`ed5f998`, `1b2ba82`) · smoke test ผ่าน · branch `feat/core` · ⛔ รออนุมัติขั้น 4 |
+| 3 | โค้ด + เทสต์ (ของปลอม ไม่เปิด sim) | plan Task 1–12 · pytest ผ่าน · แก้ drone-sitl + หลักฐาน | ✅ Task 1–12 เสร็จ · review ทั้ง branch แล้ว (แก้ Important 3 + docs routes ใน `234a650`) · flight-service 94 tests ผ่าน · drone-sitl 255 ผ่าน (`ed5f998`, `1b2ba82`) · smoke test ผ่าน · branch `feat/core` · ⛔ รออนุมัติขั้น 4 |
 | 4 | ทดสอบจริง | plan Task 13 · บินเต็ม 1 รอบ + kill 1 รอบ + pull ล้ม 1 รอบ · `docs/verification.md` | ⬜ |
 | 5 | README | plan Task 14 | ⬜ |
 | B | รับไฟล์ image ผ่าน curl (archive + bundle) | design 12 · plan B1–B4 | ⬜ ทำหลังขั้น 5 |
