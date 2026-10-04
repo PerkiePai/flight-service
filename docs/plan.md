@@ -661,12 +661,13 @@ def test_manifest_bytes_single_and_multi_platform():
 def test_check_space():
     check_space(100 * GB, 12 * GB, min_free_gb=40, max_image_gb=16)
     check_space(100 * GB, None, min_free_gb=40, max_image_gb=16)
-    for free, img, why in [(100 * GB, 17 * GB, "image_too_large"),
-                           (30 * GB, 1 * GB, "disk_low"),
-                           (50 * GB, 15 * GB, "disk_low")]:
+    for free, img, min_free, why in [(100 * GB, 17 * GB, 40, "image_too_large"),
+                                     (30 * GB, 1 * GB, 40, "disk_low"),     # under MIN_FREE_GB
+                                     (25 * GB, 15 * GB, 20, "disk_low")]:   # under 2x the image
         with pytest.raises(JobFailed) as e:
-            check_space(free, img, 40, 16)
+            check_space(free, img, min_free, 16)
         assert e.value.reason == why
+    check_space(50 * GB, 15 * GB, 40, 16)       # 50 >= max(40, 2 x 15)
 ```
 
 - [ ] **Step 2: รันให้เห็นว่า fail** — FAIL `No module named 'flight_service.policy'`
@@ -720,7 +721,7 @@ def check_space(free_bytes, image_bytes, min_free_gb, max_image_gb):
         raise JobFailed("disk_low", f"{free_bytes / GB:.0f} GB free, need {need / GB:.0f} GB")
 ```
 
-- [ ] **Step 4: รันให้ผ่าน** — Expected: `17 passed`
+- [ ] **Step 4: รันให้ผ่าน** — Expected: `16 passed`
 - [ ] **Step 5: Commit** — `git add flight_service/policy.py tests/test_policy.py && git commit -m "feat: image allowlist, size and disk checks"`
 
 ---
