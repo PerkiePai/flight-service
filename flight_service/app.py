@@ -2,11 +2,12 @@
 everything but /healthz."""
 import asyncio
 import hmac
+import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from . import policy
@@ -15,6 +16,20 @@ from .jobs import FILES, TERMINAL
 MAX_BODY = 4096
 MEDIA = {".mp4": "video/mp4", ".jsonl": "application/x-ndjson", ".json": "application/json",
          ".log": "text/plain", ".txt": "text/plain"}
+
+
+def _send(fh, size, chunk=1 << 16):
+    """Exactly `size` bytes of an open file. A journal keeps growing while a
+    flight runs; sending what was there when the request came keeps the body
+    equal to its Content-Length (design 13.4)."""
+    with fh:
+        left = size
+        while left > 0:
+            data = fh.read(min(chunk, left))
+            if not data:
+                break
+            left -= len(data)
+            yield data
 
 
 class JobRequest(BaseModel):
@@ -37,7 +52,9 @@ def create_app(settings, store, worker):
         yield
         task.cancel()
 
-    app = FastAPI(title="flight-service", lifespan=lifespan)
+    # The six endpoints of design 3 only: no unauthenticated /docs, /redoc, /openapi.json.
+    app = FastAPI(title="flight-service", lifespan=lifespan,
+                  docs_url=None, redoc_url=None, openapi_url=None)
 
     def job_or_404(job_id):
         job = store.get(job_id)
@@ -126,7 +143,11 @@ def create_app(settings, store, worker):
         path = store.dir(job_or_404(job_id)) / name
         if name not in FILES or not path.is_file():
             raise HTTPException(404, "no such file for this job")
-        return FileResponse(path, media_type=MEDIA.get(path.suffix, "application/octet-stream"),
-                            filename=name)
+        fh = open(path, "rb")                       # size of this inode, now
+        size = os.fstat(fh.fileno()).st_size
+        return StreamingResponse(_send(fh, size),
+                                 media_type=MEDIA.get(path.suffix, "application/octet-stream"),
+                                 headers={"Content-Length": str(size),
+                                          "Content-Disposition": f'attachment; filename="{name}"'})
 
     return app

@@ -32,8 +32,11 @@ class Docker:
         self.run = run
 
     async def exists(self, ref):
-        code, _ = await self.run("docker", "image", "inspect", ref, timeout=30)
-        return code == 0
+        """False only when docker says the image is not there. Any other
+        failure (timeout, daemon down) reads as present, so cleanup never
+        removes a ref it cannot prove this job brought in (design 7)."""
+        code, out = await self.run("docker", "image", "inspect", ref, timeout=30)
+        return code == 0 or "no such image" not in out.lower()
 
     async def manifest_bytes(self, ref, timeout):
         code, out = await self.run("docker", "manifest", "inspect", "-v", ref, timeout=timeout)

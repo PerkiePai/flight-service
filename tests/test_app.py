@@ -122,3 +122,29 @@ def test_files_are_served_by_name_only(tmp_path, serve):
     assert http("GET", f"{url}/jobs/{jid}/files/telemetry.jsonl", TOKEN, raw=True) == (200, b'{"t": 0}\n')
     for name in ("job.json", "panel.log", "..%2Fjob.json"):
         assert http("GET", f"{url}/jobs/{jid}/files/{name}", TOKEN, raw=True)[0] == 404
+
+
+def test_a_journal_growing_during_download_arrives_whole(tmp_path, serve):
+    """Journals are downloadable mid-flight (design 13.4): a file that grows
+    while it is being sent must still match its own Content-Length."""
+    import urllib.request
+    url, store, _ = make(tmp_path, serve)
+    jid = submit(url)[1]["job_id"]
+    path = store.dir(store.get(jid)) / "telemetry.jsonl"
+    original = b'{"t": 0}\n' * (32 * 1024 * 1024 // 9)             # ~32 MB, more than socket buffers
+    path.write_bytes(original)
+    req = urllib.request.Request(f"{url}/jobs/{jid}/files/telemetry.jsonl",
+                                 headers={"Authorization": f"Bearer {TOKEN}"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        declared = int(r.headers["Content-Length"])
+        first = r.read(65536)
+        with open(path, "ab") as f:                                  # the flight keeps writing
+            f.write(b'{"t": 1}\n' * 200_000)
+        body = first + r.read()
+    assert declared == len(original) and body == original
+
+
+def test_framework_doc_routes_are_not_served(tmp_path, serve):
+    url, _, _ = make(tmp_path, serve)
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert http("GET", url + path, raw=True)[0] == 404, path

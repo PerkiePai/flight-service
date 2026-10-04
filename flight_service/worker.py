@@ -103,6 +103,7 @@ class Worker:
         runlog = RunLog(run_dir)
         outcome = None
         end = (FAILED, "error", "internal_error", "worker stopped before the job ended")
+        shutting_down = False
         try:
             try:
                 runlog.event("start", image=job.image, source=job.source)
@@ -118,6 +119,11 @@ class Worker:
             except JobFailed as e:
                 end = (FAILED, "error", e.reason, e.detail)
             except asyncio.CancelledError:
+                if not self._kill_sent:
+                    # The service is stopping (SIGTERM), not a kill: leave the
+                    # job as it is for startup recovery -> runner_restarted.
+                    shutting_down = True
+                    raise
                 end = (KILLED, "kill", "killed", f"killed while {job.state}")
             except Exception as e:                  # noqa: BLE001
                 log.exception("job %s", job.id)
@@ -134,13 +140,14 @@ class Worker:
                                                  detail, clip)
         finally:
             runlog.close()
-            self.phase = "cleanup"
-            ok = await self._cleanup(job)
-            self.phase = "idle" if ok else "degraded"
-            self.current, self._task = None, None
-            state, _, reason, detail = end
-            self.store.end(job, state, reason, detail)     # only now: cleanup is done (design 4)
-            self._prune(also_keep=job.id)
+            if not shutting_down:           # a `return` here would swallow the CancelledError
+                self.phase = "cleanup"
+                ok = await self._cleanup(job)
+                self.phase = "idle" if ok else "degraded"
+                self.current, self._task = None, None
+                state, _, reason, detail = end
+                self.store.end(job, state, reason, detail)  # only now: cleanup is done (design 4)
+                self._prune(also_keep=job.id)
 
     def _set(self, job, runlog, state):
         self.store.set_state(job, state)

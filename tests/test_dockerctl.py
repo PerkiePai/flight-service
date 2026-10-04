@@ -41,3 +41,15 @@ def test_docker_failures_read_as_absent():
     assert asyncio.run(d.exists("perkiepai/x:1")) is False
     assert asyncio.run(d.size("perkiepai/x:1")) is None
     assert asyncio.run(d.manifest_bytes("perkiepai/x:1", 5)) is None
+
+
+def test_exists_only_says_absent_when_docker_says_so():
+    """A failed inspect that is not "No such image" must read as present, or
+    cleanup would rmi a ref this job never brought in (design 7)."""
+    absent = Docker(Rec({("image", "inspect"): (1, "Error: No such image: perkiepai/x:1")}))
+    assert asyncio.run(absent.exists("perkiepai/x:1")) is False
+    for code, out in [(124, "timed out after 30s"),
+                      (1, "Cannot connect to the Docker daemon at unix:///var/run/docker.sock"),
+                      (1, "permission denied while trying to connect")]:
+        d = Docker(Rec({("image", "inspect"): (code, out)}))
+        assert asyncio.run(d.exists("perkiepai/x:1")) is True, out

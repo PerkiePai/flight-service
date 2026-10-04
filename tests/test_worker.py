@@ -247,3 +247,31 @@ def test_retention_keeps_the_run_just_finished(tmp_path):
     asyncio.run(w.run_job(job))
     assert not store.dir(old).exists() and store.get(old.id) is None
     assert store.dir(job).exists() and store.get(job.id) is job
+
+
+def test_service_shutdown_is_not_a_kill(tmp_path):
+    """SIGTERM cancels run_job without kill(): leave the job for startup
+    recovery (failed/runner_restarted), never record it as a user kill."""
+    s, store, w = setup(tmp_path, fly=make_fly(hold=asyncio.Event()))
+    job = store.new("perkiepai/x:1", 600)
+
+    async def scenario():
+        task = asyncio.create_task(w.run_job(job))
+        while job.state != FLYING:
+            await asyncio.sleep(0.01)
+        task.cancel()                                  # what asyncio.run does at shutdown
+        try:
+            await task
+        except asyncio.CancelledError:
+            return "cancelled"
+
+    assert asyncio.run(scenario()) == "cancelled"
+    assert job.state == FLYING and job.result is None
+    assert "stop" not in w.sim.calls                   # no cleanup on the way out
+    assert (store.dir(job) / RUNNING_MARK).exists()
+    fresh = JobStore(s.runs_dir)
+    w2 = Worker(s, fresh, FakeDocker(), FakeSim(), FakeSitl(), fly=make_fly(), truth=lambda: TRUTH)
+    asyncio.run(w2.recover())
+    again = fresh.get(job.id)
+    assert (again.state, again.reason, again.result["ended_by"]) == \
+        (FAILED, "runner_restarted", "runner_restarted")
