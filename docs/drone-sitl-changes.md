@@ -40,3 +40,15 @@ index 7e11706..e3393de 100644
                  cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                  text=True, bufsize=1)
 ```
+
+---
+
+# แก้ drone-sitl ครั้งที่ 2 — 2026-10-05: race ใน `sim/run-website.sh`
+
+- **หลักฐานฝั่ง drone-sitl:** `~/pai/drone-sitl/docs/changes/2026-10-05-run-website-race.md` (commit `bda585c` โค้ด + เทสต์, ตามด้วยเอกสาร)
+- **อนุมัติโดย:** เจ้าของ flight-service, 2026-10-05 (หลังขั้น 4)
+- **อาการ:** ขั้น 4 รอบ 1 ครั้งแรก (`j-20261005-033711-4616`) ล้ม `sim_boot_timeout` ภายใน 70 ms เพราะ `run-website.sh` เช็ก process `bootstrap.py` ก่อน `launch-sitl.sh` จะ exec มัน แล้วคืนค่าทันที (docs/verification.md "ปัญหาที่เจอ" ข้อ 1)
+- **แก้:** นับว่า Isaac ตายเฉพาะเมื่อผ่าน `ISAAC_START_GRACE_S` (default 30 s) แล้วไม่มี process
+- **เทสต์ใหม่ใน drone-sitl:** `streaming/tests/test_run_website.py` (RED → GREEN) · ทั้งชุด 257 passed
+- flight-service ไม่ต้องพึ่งการแก้นี้ (`c070270` รอ :8080 เองอยู่แล้ว)
+
