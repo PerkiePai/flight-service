@@ -45,9 +45,35 @@ def test_start_web_passes_skip_sim_and_run_args(tmp_path):
 
 
 def test_start_sim_fails_when_camera_never_answers(tmp_path):
+    sim = SimControl(settings(tmp_path, boot_timeout_s=0.2), run=Runs(),
+                     up=lambda u, timeout=3.0: False, alive=lambda: True)
     with pytest.raises(JobFailed) as e:
-        asyncio.run(SimControl(settings(tmp_path), run=Runs(), up=lambda u, timeout=3.0: False).start_sim())
-    assert e.value.reason == "sim_boot_timeout"
+        asyncio.run(sim.start_sim(poll=0.01))
+    assert e.value.reason == "sim_boot_timeout" and "not up after" in e.value.detail
+
+
+def test_start_sim_waits_for_the_camera_after_the_script_returns(tmp_path):
+    """Caught live: run-website.sh can return at once ("Isaac Sim exited
+    before coming up") because it looks for bootstrap.py before
+    launch-sitl.sh has started it. Isaac is still booting; wait for :8080."""
+    answers = iter([False, False, False, True])
+    calls = []
+
+    def up(url, timeout=3.0):
+        calls.append(url)
+        return next(answers) if url.endswith(":8080/") else True
+
+    sim = SimControl(settings(tmp_path, boot_timeout_s=5), run=Runs(), up=up, alive=lambda: True)
+    asyncio.run(sim.start_sim(poll=0.01))
+    assert calls.count("http://127.0.0.1:8080/") == 4
+
+
+def test_start_sim_fails_fast_when_isaac_is_gone(tmp_path):
+    sim = SimControl(settings(tmp_path, boot_timeout_s=60), run=Runs(),
+                     up=lambda u, timeout=3.0: False, alive=lambda: False)
+    with pytest.raises(JobFailed) as e:
+        asyncio.run(sim.start_sim(poll=0.01, grace_s=0.0))
+    assert e.value.reason == "sim_boot_timeout" and "exited" in e.value.detail
 
 
 def test_wait_px4_ready_times_out(tmp_path):

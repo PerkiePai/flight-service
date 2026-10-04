@@ -3,6 +3,7 @@ drone-sitl's own scripts. Never pkill: stop-website.sh matches drone-sitl's
 process signatures (trap 5)."""
 import asyncio
 import os
+import subprocess
 import time
 
 from .dockerctl import sh, tail
@@ -34,10 +35,16 @@ def px4_ready(console, since):
 
 
 class SimControl:
-    def __init__(self, settings, run=sh, up=http_up):
+    def __init__(self, settings, run=sh, up=http_up, alive=None):
         self.s, self.run, self.up = settings, run, up
         self.dir = settings.drone_sitl_dir
         self.console = self.dir / "logs" / "launch-sitl.console"
+        self.alive = alive or self._isaac_alive
+
+    def _isaac_alive(self):
+        """drone-sitl's own isaac_running() check (read-only pgrep; we never kill by pattern)."""
+        return subprocess.run(["pgrep", "-f", str(self.dir / "sim" / "bootstrap.py")],
+                              capture_output=True).returncode == 0
 
     def _env(self, **extra):
         return {**os.environ, "DRONE_SITL_DOCKER_RUN_ARGS": self.s.docker_run_args, **extra}
@@ -55,14 +62,25 @@ class SimControl:
         if not await self._up(self.s.web_url + "/"):
             raise JobFailed("web_start_failed", tail(out))
 
-    async def start_sim(self):
-        """Isaac + PX4 (+ the web server if it is not up yet)."""
+    async def start_sim(self, poll=3.0, grace_s=30.0):
+        """Isaac + PX4 (+ the web server if it is not up yet). run-website.sh
+        can return before Isaac is up: its wait loop looks for bootstrap.py
+        before launch-sitl.sh has started it and gives up at once (caught
+        live, Task 13). So wait for the camera server here ourselves; fail
+        early only once Isaac's process has really gone."""
         wait = int(self.s.boot_timeout_s)
+        t0 = time.monotonic()
         await self.run(str(self.dir / "sim" / "run-website.sh"), timeout=wait + 60,
                        env=self._env(ISAAC_WAIT_S=str(wait)), cwd=str(self.dir))
-        if not await self._up(self.s.video_url):
-            raise JobFailed("sim_boot_timeout",
-                            f"camera server {self.s.video_url} not up after {wait}s; see {self.console}")
+        while time.monotonic() - t0 < wait:
+            if await self._up(self.s.video_url):
+                return
+            if time.monotonic() - t0 >= grace_s and not await asyncio.to_thread(self.alive):
+                raise JobFailed("sim_boot_timeout",
+                                f"Isaac Sim exited before {self.s.video_url} came up; see {self.console}")
+            await asyncio.sleep(poll)
+        raise JobFailed("sim_boot_timeout",
+                        f"camera server {self.s.video_url} not up after {wait}s; see {self.console}")
 
     async def wait_px4_ready(self, since, poll=2.0):
         deadline = time.monotonic() + self.s.px4_ready_timeout_s
