@@ -3089,13 +3089,14 @@ id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["job_id"])' <<<"$r
 flying_since=""
 while :; do
     s="$(curl -s "$R/jobs/$id" -H "$H")"
-    line="$(python3 -c '
+    line="$(python3 - "$s" <<'PY'
 import json, sys
-j = json.load(sys.stdin); t = j.get("telemetry") or {}; sl = j.get("score_live") or {}
+j = json.loads(sys.argv[1]); t = j.get("telemetry") or {}; sl = j.get("score_live") or {}
 tail = (j.get("log_tail") or [""])[-1]
-print(f"{j[\"state\"]} {j[\"elapsed_s\"]:.0f}s alt={t.get(\"alt_m\")} lat={t.get(\"lat\")} lon={t.get(\"lon\")} "
-      f"agent={t.get(\"agent_state\")} trucks={sl.get(\"trucks_found\")}/{sl.get(\"trucks_total\")} | {tail[:80]}")
-' <<<"$s")"
+print(f"{j['state']} {j['elapsed_s']:.0f}s alt={t.get('alt_m')} lat={t.get('lat')} lon={t.get('lon')} "
+      f"agent={t.get('agent_state')} trucks={sl.get('trucks_found')}/{sl.get('trucks_total')} | {tail[:80]}")
+PY
+)"
     echo "$(date +%T) $line"
     state="${line%% *}"
     [[ "$state" == done || "$state" == failed || "$state" == killed ]] && break
