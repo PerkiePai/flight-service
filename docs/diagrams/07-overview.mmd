@@ -1,0 +1,92 @@
+flowchart TB
+    %% ภาพรวม flight-service: ทุกส่วนและทุกกรณีในภาพเดียว (อ่านจากบนลงล่าง)
+
+    Q[("① ระบบคิวพี่ต้น · ส่งงาน<br/>ถือคิวหลัก · เช็ก GET /healthz ว่า ready ก่อนส่ง")]
+
+    subgraph API["② flight-service API :8095 · รับงาน (POST /jobs)"]
+        direction TB
+        AUTH{"token ถูก?"}
+        READY{"ช่องรอว่าง?<br/>(ทำ 1 + รอ 1)"}
+        SRC{"ส่งมาแบบไหน?"}
+        ALLOW{"image อยู่ใน<br/>allowlist?"}
+        SIZE{"Content-Length<br/>+ ดิสก์ พอ?"}
+        RECV["รับไฟล์แบบ stream<br/>→ upload.tar"]
+        AUTH -->|ใช่| READY
+        READY -->|ว่าง| SRC
+        SRC -->|"JSON {image}"| ALLOW
+        SRC -->|"ไฟล์ curl -T<br/>kind=image | bundle"| SIZE
+        SIZE -->|ใช่| RECV
+    end
+
+    subgraph PREP["③ Worker · เตรียม image (ตอบ 202 แล้ว)"]
+        direction LR
+        PEND[("queued<br/>ช่องรอ ≤ 1 งาน")]
+        PULL["<b>pulling</b><br/>drone-sitl /agent/pull-docker<br/>← Docker Hub"]
+        LOAD["<b>loading</b><br/>image: อ่าน tag → docker load<br/>bundle: drone-sitl build"]
+    end
+
+    subgraph RUN["④ Worker + drone-sitl + Isaac Sim · บิน"]
+        direction TB
+        BOOT["<b>booting</b><br/>run-website.sh → Isaac Sim + PX4<br/>รอ 'Ready for takeoff'"]
+        FLY["<b>flying</b><br/>/ws RUN → arm · takeoff · offboard<br/>→ docker run agent (จำกัด resource)<br/>telemetry 5 Hz · log · กล่อง detection"]
+        BOOT -->|PX4 พร้อม| FLY
+    end
+
+    subgraph DATA["⑥ data/runs/&lt;job_id&gt;/ · เก็บย้อนหลัง ≤ 10 GB"]
+        direction LR
+        JNL[("journal .jsonl<br/>telemetry · events · detections<br/>เขียนทันทีทุกเฟรม")]
+        RES[("result.json · score.json<br/>track.jsonl · panel.log<br/>detections.mp4")]
+    end
+
+    subgraph ENDING["⑤ จบงาน · ทุกกรณีผ่านทางเดียวกัน"]
+        direction TB
+        KILL["POST /jobs/{id}/kill<br/>หยุดขั้นที่ทำอยู่ + stop agent"]
+        REC["recover<br/>(runner เปิดใหม่หลังตาย)"]
+        FIN["<b>finalize</b><br/>สร้างผลจาก journal + MP4 ของ det_recorder<br/>partial = true ถ้าไม่ได้จบเอง"]
+        CLEAN["<b>cleanup</b><br/>docker rm -f · stop-website.sh<br/>rmi เฉพาะ image ที่งานนี้นำเข้ามา"]
+        END{{"done / failed / killed<br/>runner ว่าง → รับงานถัดไป"}}
+        DEG["degraded<br/>ปิด sim ไม่ได้ ต้องมีคนแก้"]
+        FIN --> CLEAN
+        CLEAN -->|สำเร็จ| END
+        CLEAN -.->|ปิด sim ไม่ได้| DEG
+    end
+
+    %% --- เส้นทางหลัก ---
+    Q -->|"POST /jobs"| AUTH
+    ALLOW -->|"ใช่ · 202"| PEND
+    RECV -->|202| PEND
+    PEND -->|"ถึงคิว: JSON"| PULL
+    PEND -->|"ถึงคิว: ไฟล์"| LOAD
+    PULL -->|image_tag| BOOT
+    LOAD -->|image_tag| BOOT
+    FLY -->|"agent จบเอง"| FIN
+    FLY -->|"append ทุกเฟรม"| JNL
+    JNL --> FIN
+    FIN --> RES
+
+    %% --- ทางที่ไม่ผ่าน (ไม่สร้างงาน) ---
+    AUTH -->|ไม่| E401["401"]
+    READY -->|"เต็ม"| E409["409 busy · 503 degraded<br/>พี่ต้นเก็บงานไว้ในคิว ลองใหม่"]
+    ALLOW -->|ไม่| E403["400 · 403"]
+    SIZE -->|ไม่| E413["411 · 413 · 415 · 507"]
+
+    %% --- ทางล้ม / ถูกหยุด: ทุกเส้นเข้า finalize ---
+    PREP -.->|"pull/load ล้ม · ดิสก์ไม่พอ · tag ชน · sim_busy"| FIN
+    BOOT -.->|"sim / PX4 ไม่ขึ้น"| FIN
+    FLY -.->|"crash · timeout · arming ค้าง · ws หลุด"| FIN
+    KILL -.-> FIN
+    REC -.-> FIN
+
+    %% --- พี่ต้นอ่านผล ---
+    QOUT[("⑦ ระบบคิวพี่ต้น · อ่านผล<br/>GET /jobs/{id} ระหว่างบินและหลังจบ<br/>GET /jobs/{id}/files/{name}<br/>เห็น state จบ → ส่งงานถัดไป")]
+    END --> QOUT
+    DATA -->|"อ่านข้อมูลสด + ผล + ไฟล์"| QOUT
+
+    classDef err fill:#fde2e2,stroke:#c0392b,color:#7b241c
+    classDef ok fill:#e3f6e8,stroke:#27ae60,color:#145a32
+    classDef store fill:#eef3fb,stroke:#5b7fbf,color:#1b2a4a
+    classDef caller fill:#fff4d6,stroke:#d4a017,color:#5a4300
+    class E401,E409,E403,E413,DEG err
+    class END ok
+    class JNL,RES,PEND store
+    class Q,QOUT caller

@@ -1,0 +1,24 @@
+sequenceDiagram
+    autonumber
+    participant PT as ระบบคิวพี่ต้น
+    participant API as flight-service API
+    participant W as Worker
+    participant FS as data/runs/<id>
+    participant DS as drone-sitl (:8090 + scripts)
+
+    Note over W,FS: งานกำลังบิน · journal ถูก flush ทุกบรรทัด
+    Note over API,W: process ของ runner ตาย (ctrl-C / reboot)
+    PT->>API: GET /jobs/{id}
+    API--xPT: connection refused
+    Note over API: เปิดใหม่ด้วย scripts/run-service.sh
+    API->>W: recover()
+    W->>FS: อ่าน job.json ที่ยังไม่จบ (state = flying, owns_sim)
+    W->>FS: finalize จาก journal (partial, ended_by = runner_restarted)
+    W->>DS: docker rm -f + stop-website.sh
+    W->>W: docker rmi image ของงานนั้น
+    W->>FS: state = failed, reason = runner_restarted
+    PT->>API: GET /jobs/{id}
+    API-->>PT: {state:"failed", reason:"runner_restarted", result:{partial:true, files}}
+    PT->>API: GET /healthz
+    API-->>PT: {ready:true}
+    Note over PT: ตัดสินใจเองว่าจะส่งงานนี้ซ้ำหรือไม่

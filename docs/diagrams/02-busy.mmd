@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    participant PT as ระบบคิวพี่ต้น (คิวหลัก)
+    participant API as flight-service API
+    participant W as Worker (ทำ 1 + ช่องรอ 1)
+
+    Note over W: กำลังทำงาน A (flying) · ช่องรอว่าง
+    PT->>API: POST /jobs {image B}
+    API->>API: token + ช่องรอว่าง?
+    API-->>PT: 202 {job_id B, state:"queued"}
+    Note over W: B รอในช่องรอ (pending = 1)
+    PT->>API: POST /jobs {image C}
+    API-->>PT: 409 {detail:"busy", current_job:"A", pending:["B"]}
+    Note over PT: งาน C ยังอยู่ในคิวของพี่ต้น<br/>ตรวจเทียบได้จาก GET /jobs (B = queued)
+    loop ทุก 5–10 s
+        PT->>API: GET /healthz
+        API-->>PT: {ready:false, phase:"flying", pending:1}
+    end
+    W->>W: A จบ + cleanup เสร็จ → A = done
+    W->>W: เริ่ม B (queued → pulling)
+    PT->>API: GET /healthz
+    API-->>PT: {ready:true, phase:"running", pending:0}
+    PT->>API: POST /jobs {image C}
+    API-->>PT: 202 {job_id C, state:"queued"}
+
+    opt runner เสีย (cleanup ปิด sim ไม่ได้)
+        PT->>API: POST /jobs {image D}
+        API-->>PT: 503 {detail:"degraded"}
+        Note over PT,API: งานที่รออยู่จะ failed (runner_degraded)<br/>ต้องมีคนปิด sim เองแล้ว restart service
+    end

@@ -1,0 +1,34 @@
+sequenceDiagram
+    autonumber
+    participant PT as ระบบคิวพี่ต้น
+    participant API as flight-service API
+    participant W as Worker
+    participant FS as data/runs/<id>
+    participant DS as drone-sitl (:8090 + scripts)
+    participant DK as Docker engine
+
+    PT->>API: POST /jobs?kind=image&name=truck (curl -T truck.tar)
+    API->>API: token + ช่องรอว่าง + Content-Length ≤ 16 GB + ดิสก์พอ
+    alt ไม่ผ่าน
+        API-->>PT: 409 ช่องรอเต็ม / 411 / 413 / 507 (ไม่รับไฟล์)
+    else ผ่าน
+        PT->>API: ส่งไฟล์ (stream)
+        API->>FS: เขียน upload.tar ทีละก้อน + นับ byte
+        API-->>PT: 202 {job_id, state:"queued"}
+    end
+    alt kind = image (docker save)
+        W->>FS: อ่าน manifest.json ใน tar (ไม่แตกไฟล์)
+        W->>DK: tag ในไฟล์มีอยู่แล้วไหม
+        alt tag ชนของที่มี
+            Note over W: failed / archive_rejected
+        else ไม่ชน
+            W->>DK: docker load -i upload.tar
+            W->>DK: tag เป็น submission-truck-<ts> + ลบ tag เดิมของไฟล์
+        end
+    else kind = bundle (Dockerfile + โค้ด ≤ 200 MB)
+        W->>DS: run-website.sh (SKIP_SIM=1)
+        W->>DS: POST /agent/upload-docker (build FROM competition-base)
+        DS-->>W: image_tag
+    end
+    W->>FS: ลบ upload.tar ทันที
+    Note over W,DS: ต่อจากนี้เหมือนกรณีปกติ: booting → flying → finalize → cleanup

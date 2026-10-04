@@ -1,0 +1,7 @@
+data/
+logs/
+run/
+mock-out/
+.env
+__pycache__/
+.superpowers/

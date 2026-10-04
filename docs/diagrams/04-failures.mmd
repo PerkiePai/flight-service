@@ -1,0 +1,37 @@
+sequenceDiagram
+    autonumber
+    participant PT as ระบบคิวพี่ต้น
+    participant API as flight-service API
+    participant W as Worker
+    participant FS as data/runs/<id>
+    participant DS as drone-sitl (:8090 + scripts)
+    participant SIM as Isaac Sim + PX4
+    participant AG as Agent container
+
+    PT->>API: POST /jobs {image}
+    API-->>PT: 202 {job_id}
+    alt pull ไม่ได้
+        W->>DS: POST /agent/pull-docker
+        DS-->>W: 400 pull failed + log
+        Note over W: reason = pull_failed (failed_in = pulling)
+    else PX4 ไม่พร้อมภายใน 180 s
+        W->>SIM: รอ "Ready for takeoff"
+        SIM-->>W: (ไม่มี)
+        Note over W: reason = px4_not_ready (failed_in = booting)
+    else agent crash
+        AG-->>DS: exit ≠ 0
+        DS-->>W: agent state = error
+        Note over W: reason = agent_crashed (มีข้อมูลบินถึงจุด crash)
+    else บินเกินเวลา
+        W->>DS: WS {"action":"stop"}
+        Note over W: reason = flight_timeout (ended_by = timeout)
+    else ค้างที่ arming เกิน 90 s
+        W->>DS: WS {"action":"stop"}
+        Note over W: reason = arming_timeout
+    end
+    W->>FS: finalize จาก journal เสมอ (partial = true)
+    W->>DS: docker rm -f + stop-website.sh
+    W->>W: docker rmi image ของงานนี้
+    W->>FS: state = failed
+    PT->>API: GET /jobs/{id}
+    API-->>PT: {state:"failed", failed_in, reason, detail, result:{partial:true, files}}

@@ -1,0 +1,23 @@
+stateDiagram-v2
+    direction LR
+    state "กำลังทำงาน (ทีละ 1 งาน)" as active {
+        direction LR
+        pulling --> booting: ได้ image_tag
+        loading --> booting: load / build สำเร็จ
+        booting --> flying: PX4 "Ready for takeoff"
+    }
+    [*] --> queued: POST /jobs (202)
+    queued --> pulling: ถึงคิว (JSON image)
+    queued --> loading: ถึงคิว (ไฟล์ image)
+    queued --> killed: POST /kill (ยังไม่เริ่ม)
+    flying --> done: agent จบเอง
+    active --> failed: ผิดพลาด (reason)
+    active --> killed: POST /jobs/{id}/kill
+    done --> [*]
+    failed --> [*]
+    killed --> [*]
+    note right of failed
+        ทุก state จบ = finalize + cleanup เสร็จแล้ว
+        มี result (partial = true ถ้าไม่ใช่ done)
+        และ runner พร้อมรับงานถัดไป
+    end note

@@ -1,0 +1,19 @@
+{
+ "theme": "default",
+ "themeVariables": {
+  "fontFamily": "Noto Sans Thai, Noto Sans, sans-serif",
+  "fontSize": "16px"
+ },
+ "sequence": {
+  "mirrorActors": false,
+  "messageFontSize": 15,
+  "noteFontSize": 15,
+  "actorFontSize": 15,
+  "wrap": false
+ },
+ "flowchart": {
+  "wrappingWidth": 320,
+  "nodeSpacing": 40,
+  "rankSpacing": 45
+ }
+}

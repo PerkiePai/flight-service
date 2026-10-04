@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    participant PT as ระบบคิวพี่ต้น
+    participant API as flight-service API
+    participant W as Worker
+    participant FS as data/runs/<id>
+    participant DS as drone-sitl (:8090 + scripts)
+    participant HUB as Docker Hub
+    participant SIM as Isaac Sim + PX4
+    participant AG as Agent container
+
+    PT->>API: GET /healthz
+    API-->>PT: 200 {ok:true, ready:true, phase:"idle"}
+    PT->>API: POST /jobs {"image":"perkiepai/truck:1","flight_timeout_s":600}
+    API->>API: token + ช่องรอว่าง + allowlist
+    API-->>PT: 202 {job_id, state:"queued"}
+    API->>W: เริ่มงาน
+    W->>FS: RUNNING + events.jsonl (queued → pulling)
+    W->>DS: run-website.sh (SKIP_SIM=1) เปิดเว็บอย่างเดียว
+    W->>DS: POST /agent/pull-docker?ref=perkiepai/truck:1
+    DS->>HUB: docker pull
+    HUB-->>DS: image
+    DS-->>W: image_tag = submission-truck-<ts>
+    W->>FS: state=booting
+    W->>DS: run-website.sh (บูต Isaac + PX4)
+    DS->>SIM: launch-sitl.sh
+    W->>SIM: รอ "Ready for takeoff" ใน launch-sitl.console
+    W->>FS: state=flying
+    W->>DS: WS /ws {"type":"agent","action":"run","kind":"docker"}
+    DS->>SIM: arm → takeoff → offboard
+    DS->>AG: docker run --network host + จำกัด memory/pids/cap
+    loop ทุก 200 ms (5 Hz) จนกว่า agent จบ
+        DS-->>W: telemetry frame (PX4 + agent log + กล่อง)
+        W->>FS: append telemetry / events / detections .jsonl
+    end
+    loop พี่ต้น poll ทุก 1–5 s (ขนานกับด้านบน)
+        PT->>API: GET /jobs/{id}
+        API-->>PT: state=flying + telemetry ล่าสุด + log_tail + score_live
+    end
+    AG-->>DS: exit 0
+    DS-->>W: agent state = stopped
+    W->>DS: WS {"action":"stop"}
+    W->>DS: GET /detrec/status (รอคลิป MP4 ปิดไฟล์)
+    W->>FS: finalize → track, panel.log, score.json, result.json, detections.mp4
+    W->>DS: docker rm -f (ถ้าค้าง) + stop-website.sh
+    W->>W: docker rmi เฉพาะ image ที่งานนี้ pull มา
+    W->>FS: state=done
+    PT->>API: GET /jobs/{id}
+    API-->>PT: 200 {state:"done", result:{partial:false, score, files}}
+    PT->>API: GET /jobs/{id}/files/detections.mp4
+    API-->>PT: video/mp4
+    Note over PT,API: runner ว่างแล้ว → พี่ต้นส่งงานถัดไปจากคิวได้เลย

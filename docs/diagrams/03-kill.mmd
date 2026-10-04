@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    participant PT as ระบบคิวพี่ต้น
+    participant API as flight-service API
+    participant W as Worker
+    participant FS as data/runs/<id>
+    participant DS as drone-sitl (:8090 + scripts)
+    participant AG as Agent container
+
+    Note over W,AG: งานกำลังบิน (state = flying)<br/>journal ถูกเขียนต่อเนื่องทุกเฟรม
+    PT->>API: POST /jobs/{id}/kill
+    API->>W: kill(job)
+    W->>W: ยกเลิกขั้นที่ทำอยู่
+    W->>DS: WS {"action":"stop"}
+    DS->>AG: docker stop
+    DS-->>W: det_recorder ปิดไฟล์ MP4
+    W->>FS: events.jsonl: end (ended_by=kill)
+    W->>FS: finalize จาก journal → result.json (partial=true)
+    W->>DS: docker rm -f + stop-website.sh
+    W->>W: docker rmi image ของงานนี้
+    W->>FS: state=killed
+    API-->>PT: 200 {state:"killed", failed_in:"flying", result:{partial:true, ended_by:"kill", files}}
+    Note over PT,API: ถ้าเกิน 60 s ตอบ 202 แทน แล้วให้ poll GET /jobs/{id} ต่อ
+    PT->>API: GET /jobs/{id}/files/telemetry.jsonl
+    API-->>PT: ข้อมูลที่บินมาจนถึงตอน kill
