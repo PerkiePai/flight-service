@@ -1,0 +1,45 @@
+{"job_id":"j-20261005-034925-8cfb","state":"queued","source":"registry"}
+03:49:25 pulling 0s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:49:30 pulling 5s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:49:35 booting 10s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:49:40 booting 15s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:49:46 booting 20s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:49:51 booting 25s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:49:56 booting 30s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:50:01 booting 35s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:50:06 flying 40s alt=0.009983643889427185 lat=14.0283445 lon=100.4364646 agent=arming trucks=0/3 | arming for submission-truck-detector-20261005-034931
+03:50:11 flying 45s alt=0.013696229085326195 lat=14.0283446 lon=100.4364647 agent=arming trucks=0/3 | takeoff
+03:50:16 flying 50s alt=2.752451181411743 lat=14.0283448 lon=100.4364644 agent=arming trucks=0/3 | takeoff
+03:50:21 flying 55s alt=4.471626281738281 lat=14.0283441 lon=100.4364648 agent=running trucks=0/3 | agent running
+03:50:26 flying 60s alt=4.5451154708862305 lat=14.0283441 lon=100.4364651 agent=running trucks=0/3 | agent running
+03:50:31 flying 65s alt=8.964405059814453 lat=14.0283443 lon=100.4364652 agent=running trucks=0/3 | [    0.1s] STATUS CLIMB to 40 m, straight up  alt 4.5 m  heading 360
+03:50:36 flying 70s alt=18.213565826416016 lat=14.028344 lon=100.4364651 agent=running trucks=1/3 | [    5.1s] STATUS CLIMB to 40 m, straight up  alt 12.8 m  heading 360
+03:50:41 flying 75s alt=27.254167556762695 lat=14.0283439 lon=100.4364649 agent=running trucks=1/3 | [   10.1s] STATUS CLIMB to 40 m, straight up  alt 22.0 m  heading 360
+03:50:46 flying 80s alt=36.350730895996094 lat=14.0283438 lon=100.4364652 agent=running trucks=1/3 | [   15.2s] STATUS CLIMB to 40 m, straight up  alt 31.2 m  heading 360
+03:50:51 flying 85s alt=40.037479400634766 lat=14.0283636 lon=100.436469 agent=running trucks=1/3 | [   20.3s] STATUS APPROACH truck #1  dist 16.0 m  alt 40.0 m  heading 360
+03:50:56 flying 90s alt=39.54306411743164 lat=14.028427 lon=100.4364748 agent=running trucks=1/3 | [   25.3s] STATUS APPROACH truck #1  dist 10.9 m  alt 40.0 m  heading 358
+03:51:01 flying 96s alt=34.851985931396484 lat=14.0284648 lon=100.4364793 agent=running trucks=1/3 | [   30.3s] STATUS APPROACH truck #1  dist 4.6 m  alt 37.5 m  heading 358
+03:51:06 flying 100s alt=30.21136474609375 lat=14.0284767 lon=100.4364848 agent=running trucks=1/3 | [   35.4s] STATUS APPROACH truck #1  dist 1.3 m  alt 32.8 m  heading 358
+03:51:11 flying 106s alt=25.709131240844727 lat=14.0284799 lon=100.4364867 agent=running trucks=1/3 | [   40.4s] STATUS APPROACH truck #1  dist 0.3 m  alt 28.1 m  heading 358
+03:51:16 flying 110s alt=21.977737426757812 lat=14.0284805 lon=100.4364873 agent=running trucks=1/3 | [   45.6s] INSPECT over truck #1: dist 0.0 m, alt 23.4 m, holding 3 s
+03:51:21 flying 116s alt=29.447383880615234 lat=14.0284805 lon=100.4364872 agent=running trucks=1/3 | [   48.7s] CLIMB  truck #1 done at 14.028480, 100.436487 (refined 1.0 m) -> 40 m
+03:51:26 flying 121s alt=38.69439697265625 lat=14.0284801 lon=100.4364874 agent=running trucks=1/3 | [   48.7s] CLIMB  truck #1 done at 14.028480, 100.436487 (refined 1.0 m) -> 40 m
+03:51:31 flying 126s alt=39.98955535888672 lat=14.0285153 lon=100.4364945 agent=running trucks=1/3 | [   58.7s] APPROACH truck #2: 13.7 m away at 40 m, down to 22 m within 8 m
+03:51:36 flying 131s alt=36.04713821411133 lat=14.0285611 lon=100.4364999 agent=running trucks=2/3 | [   63.4s] STATUS APPROACH truck #2  dist 8.3 m  alt 40.0 m  heading 358
+>>> kill
+{"state": "killed", "failed_in": "flying", "reason": "killed", "detail": "killed while flying"}
+{"ended_by": "kill", "partial": true, "flight_s": 91.6, "distance_m": 25.5, "score": {"version": "v0", "score": 79.8, "recall": 0.667, "precision": 0.994, "trucks_found": 2, "trucks_total": 3}, "missing": []}
+total 8556
+drwxrwxr-x 2 innovation innovation    4096 Oct  5 03:51 .
+drwxrwxr-x 5 innovation innovation    4096 Oct  5 03:51 ..
+-rw-rw-r-- 1 innovation innovation     498 Oct  5 03:51 analysis.txt
+-rw-rw-r-- 1 innovation innovation  114766 Oct  5 03:51 detections.jsonl
+-rw-rw-r-- 1 innovation innovation 7841670 Oct  5 03:51 detections.mp4
+-rw-rw-r-- 1 innovation innovation    3955 Oct  5 03:51 events.jsonl
+-rw-rw-r-- 1 innovation innovation    3097 Oct  5 03:51 job.json
+-rw-rw-r-- 1 innovation innovation     541 Oct  5 03:51 meta.json
+-rw-rw-r-- 1 innovation innovation    1916 Oct  5 03:51 panel.log
+-rw-rw-r-- 1 innovation innovation    1049 Oct  5 03:51 result.json
+-rw-rw-r-- 1 innovation innovation     383 Oct  5 03:51 score.json
+-rw-rw-r-- 1 innovation innovation  637040 Oct  5 03:51 telemetry.jsonl
+-rw-rw-r-- 1 innovation innovation  121243 Oct  5 03:51 track.jsonl

@@ -1,0 +1,127 @@
+{"job_id":"j-20261005-033950-b5fa","state":"queued","source":"registry"}
+03:39:50 pulling 0s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:39:55 pulling 5s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:00 pulling 10s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:05 pulling 15s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:10 booting 20s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:15 booting 25s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:20 booting 30s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:25 booting 35s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:30 booting 40s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:35 booting 45s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:40 booting 50s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:40:45 flying 55s alt=-0.055353257805109024 lat=14.0283443 lon=100.4364646 agent=arming trucks=0/3 | takeoff
+03:40:50 flying 60s alt=-0.04335329309105873 lat=14.0283445 lon=100.4364646 agent=arming trucks=0/3 | takeoff
+03:40:55 flying 65s alt=2.653294801712036 lat=14.0283443 lon=100.4364644 agent=arming trucks=0/3 | takeoff
+03:41:00 flying 70s alt=4.390353202819824 lat=14.0283439 lon=100.4364647 agent=running trucks=0/3 | agent running
+03:41:05 flying 75s alt=4.449472904205322 lat=14.0283435 lon=100.4364647 agent=running trucks=0/3 | agent running
+03:41:10 flying 80s alt=4.441693305969238 lat=14.0283433 lon=100.4364645 agent=running trucks=0/3 | [    0.1s] STATUS CLIMB to 40 m, straight up  alt 4.4 m  heading 360
+03:41:15 flying 85s alt=13.236130714416504 lat=14.0283431 lon=100.4364648 agent=running trucks=0/3 | [    5.1s] STATUS CLIMB to 40 m, straight up  alt 12.7 m  heading 360
+03:41:20 flying 90s alt=22.425369262695312 lat=14.0283433 lon=100.436465 agent=running trucks=1/3 | [   10.2s] STATUS CLIMB to 40 m, straight up  alt 21.8 m  heading 359
+03:41:25 flying 96s alt=31.5561580657959 lat=14.0283438 lon=100.4364648 agent=running trucks=1/3 | [   15.2s] STATUS CLIMB to 40 m, straight up  alt 31.3 m  heading 359
+03:41:30 flying 100s alt=40.17445755004883 lat=14.0283441 lon=100.4364648 agent=running trucks=1/3 | [   20.3s] STATUS APPROACH truck #1  dist 16.0 m  alt 40.1 m  heading 359
+03:41:35 flying 106s alt=39.98569869995117 lat=14.0283938 lon=100.436477 agent=running trucks=1/3 | [   25.3s] STATUS APPROACH truck #1  dist 9.6 m  alt 40.0 m  heading 358
+03:41:40 flying 110s alt=36.58396911621094 lat=14.028444 lon=100.4364873 agent=running trucks=1/3 | [   25.3s] STATUS APPROACH truck #1  dist 9.6 m  alt 40.0 m  heading 358
+03:41:45 flying 116s alt=31.95659828186035 lat=14.0284682 lon=100.4364883 agent=running trucks=1/3 | [   35.4s] STATUS APPROACH truck #1  dist 1.6 m  alt 32.0 m  heading 358
+03:41:50 flying 121s alt=27.38877296447754 lat=14.0284779 lon=100.4364874 agent=running trucks=1/3 | [   35.4s] STATUS APPROACH truck #1  dist 1.6 m  alt 32.0 m  heading 358
+03:41:56 flying 126s alt=22.887157440185547 lat=14.0284803 lon=100.4364872 agent=running trucks=1/3 | [   44.8s] INSPECT over truck #1: dist 0.0 m, alt 23.5 m, holding 3 s
+03:42:01 flying 131s alt=26.210708618164062 lat=14.0284809 lon=100.4364868 agent=running trucks=1/3 | [   47.9s] CLIMB  truck #1 done at 14.028480, 100.436487 (refined 0.7 m) -> 40 m
+03:42:06 flying 136s alt=35.342647552490234 lat=14.0284808 lon=100.4364866 agent=running trucks=1/3 | [   47.9s] CLIMB  truck #1 done at 14.028480, 100.436487 (refined 0.7 m) -> 40 m
+03:42:11 flying 141s alt=40.018131256103516 lat=14.028494 lon=100.4364908 agent=running trucks=1/3 | [   57.9s] APPROACH truck #2: 13.6 m away at 40 m, down to 22 m within 8 m
+03:42:16 flying 146s alt=36.771263122558594 lat=14.0285419 lon=100.4365019 agent=running trucks=2/3 | [   62.7s] STATUS APPROACH truck #2  dist 6.9 m  alt 39.6 m  heading 357
+03:42:21 flying 151s alt=31.982946395874023 lat=14.0285753 lon=100.4365003 agent=running trucks=2/3 | [   67.7s] STATUS APPROACH truck #2  dist 4.6 m  alt 34.7 m  heading 358
+03:42:26 flying 156s alt=27.44675636291504 lat=14.0285892 lon=100.4364978 agent=running trucks=2/3 | [   72.8s] STATUS APPROACH truck #2  dist 1.6 m  alt 30.1 m  heading 358
+03:42:31 flying 161s alt=22.895553588867188 lat=14.0285941 lon=100.4364961 agent=running trucks=2/3 | [   80.2s] INSPECT over truck #2: dist 0.2 m, alt 23.4 m, holding 3 s
+03:42:36 flying 166s alt=25.912179946899414 lat=14.0285954 lon=100.4364954 agent=running trucks=2/3 | [   83.2s] CLIMB  truck #2 done at 14.028595, 100.436496 (refined 0.9 m) -> 40 m
+03:42:41 flying 171s alt=35.13003158569336 lat=14.0285956 lon=100.4364955 agent=running trucks=2/3 | [   83.2s] CLIMB  truck #2 done at 14.028595, 100.436496 (refined 0.9 m) -> 40 m
+03:42:46 flying 176s alt=39.998207092285156 lat=14.0285889 lon=100.4365135 agent=running trucks=2/3 | [   93.2s] SKIP   Truck 0.78 is known #1, keep sweeping
+03:42:51 flying 181s alt=39.98065948486328 lat=14.0285681 lon=100.4365921 agent=running trucks=2/3 | [   98.0s] STATUS SWEEP wp 2/6  dist 94.8 m  alt 40.0 m  heading 356
+03:42:56 flying 186s alt=39.993534088134766 lat=14.0285466 lon=100.436669 agent=running trucks=2/3 | [  103.1s] STATUS APPROACH truck #3  dist 50.6 m  alt 40.0 m  heading 357
+03:43:01 flying 191s alt=40.00265121459961 lat=14.0285236 lon=100.4367367 agent=running trucks=2/3 | [  108.1s] STATUS APPROACH truck #3  dist 42.6 m  alt 40.0 m  heading 357
+03:43:06 flying 196s alt=40.000179290771484 lat=14.0285006 lon=100.4368023 agent=running trucks=3/3 | [  113.2s] STATUS APPROACH truck #3  dist 34.9 m  alt 40.0 m  heading 357
+03:43:11 flying 201s alt=40.001495361328125 lat=14.0284772 lon=100.4368685 agent=running trucks=3/3 | [  118.3s] STATUS APPROACH truck #3  dist 27.4 m  alt 40.0 m  heading 357
+03:43:16 flying 206s alt=39.99761199951172 lat=14.0284534 lon=100.4369347 agent=running trucks=3/3 | [  123.3s] STATUS APPROACH truck #3  dist 19.8 m  alt 40.0 m  heading 357
+03:43:21 flying 211s alt=39.99867248535156 lat=14.0284305 lon=100.437 agent=running trucks=3/3 | [  128.3s] STATUS APPROACH truck #3  dist 12.3 m  alt 40.0 m  heading 357
+03:43:26 flying 216s alt=35.91416549682617 lat=14.0284157 lon=100.4370414 agent=running trucks=3/3 | [  133.4s] STATUS APPROACH truck #3  dist 5.1 m  alt 38.2 m  heading 357
+03:43:31 flying 221s alt=31.319597244262695 lat=14.028414 lon=100.4370424 agent=running trucks=3/3 | [  138.4s] STATUS APPROACH truck #3  dist 0.3 m  alt 33.7 m  heading 357
+03:43:36 flying 226s alt=26.8077392578125 lat=14.028414 lon=100.4370411 agent=running trucks=3/3 | [  143.5s] STATUS APPROACH truck #3  dist 0.1 m  alt 29.1 m  heading 357
+03:43:41 flying 231s alt=22.307382583618164 lat=14.0284143 lon=100.4370412 agent=running trucks=3/3 | [  149.8s] INSPECT over truck #3: dist 0.1 m, alt 23.4 m, holding 3 s
+03:43:46 flying 236s alt=27.278165817260742 lat=14.0284142 lon=100.4370406 agent=running trucks=3/3 | [  152.8s] CLIMB  truck #3 done at 14.028414, 100.437041 (refined 3.4 m) -> 40 m
+03:43:51 flying 241s alt=36.4351921081543 lat=14.0284142 lon=100.4370401 agent=running trucks=3/3 | [  152.8s] CLIMB  truck #3 done at 14.028414, 100.437041 (refined 3.4 m) -> 40 m
+03:43:56 flying 246s alt=40.011085510253906 lat=14.0284071 lon=100.4370699 agent=running trucks=3/3 | [  162.8s] SKIP   Truck 0.82 is known #3, keep sweeping
+03:44:01 flying 251s alt=39.97827911376953 lat=14.0283922 lon=100.4371505 agent=running trucks=3/3 | [  167.7s] STATUS SWEEP wp 2/6  dist 32.5 m  alt 40.0 m  heading 355
+03:44:06 flying 256s alt=39.995384216308594 lat=14.028376 lon=100.437233 agent=running trucks=3/3 | [  172.8s] STATUS SWEEP wp 2/6  dist 23.6 m  alt 40.0 m  heading 356
+03:44:11 flying 261s alt=39.99874496459961 lat=14.0283594 lon=100.4373147 agent=running trucks=3/3 | [  177.9s] SKIP   Truck 0.83 is known #3, keep sweeping
+03:44:16 flying 266s alt=40.00689697265625 lat=14.0283597 lon=100.4373475 agent=running trucks=3/3 | [  184.1s] SWEEP  -> wp 3/6 (60N, 0E)  dist 111.9 m
+03:44:21 flying 271s alt=39.994564056396484 lat=14.028399 lon=100.4372791 agent=running trucks=3/3 | [  187.9s] STATUS SWEEP wp 3/6  dist 109.0 m  alt 40.0 m  heading 354
+03:44:26 flying 276s alt=40.00032424926758 lat=14.0284408 lon=100.4372052 agent=running trucks=3/3 | [  192.9s] SKIP   Truck 0.84 is known #3, keep sweeping
+03:44:31 flying 281s alt=39.99948501586914 lat=14.0284837 lon=100.4371322 agent=running trucks=3/3 | [  197.9s] STATUS SWEEP wp 3/6  dist 90.8 m  alt 40.0 m  heading 355
+03:44:36 flying 286s alt=39.999351501464844 lat=14.028527 lon=100.4370593 agent=running trucks=3/3 | [  202.9s] STATUS SWEEP wp 3/6  dist 81.6 m  alt 40.0 m  heading 355
+03:44:41 flying 291s alt=40.00308609008789 lat=14.0285697 lon=100.4369877 agent=running trucks=3/3 | [  208.1s] SKIP   Truck 0.83 is known #3, keep sweeping
+03:44:46 flying 296s alt=39.99787139892578 lat=14.0286126 lon=100.4369163 agent=running trucks=3/3 | [  213.2s] SKIP   Truck 0.66 is known #1, keep sweeping
+03:44:51 flying 301s alt=40.00023651123047 lat=14.028656 lon=100.4368436 agent=running trucks=3/3 | [  218.0s] STATUS SWEEP wp 3/6  dist 54.2 m  alt 40.0 m  heading 355
+03:44:56 flying 306s alt=39.996437072753906 lat=14.0286992 lon=100.4367719 agent=running trucks=3/3 | [  223.3s] SKIP   Truck 0.79 is known #3, keep sweeping
+03:45:01 flying 311s alt=40.002105712890625 lat=14.0287422 lon=100.4366997 agent=running trucks=3/3 | [  228.4s] SKIP   Truck 0.75 is known #1, keep sweeping
+03:45:06 flying 316s alt=39.997886657714844 lat=14.0287849 lon=100.4366284 agent=running trucks=3/3 | [  233.2s] STATUS SWEEP wp 3/6  dist 26.9 m  alt 40.0 m  heading 355
+03:45:11 flying 321s alt=39.999752044677734 lat=14.0288282 lon=100.4365561 agent=running trucks=3/3 | [  238.2s] STATUS SWEEP wp 3/6  dist 17.4 m  alt 40.0 m  heading 355
+03:45:16 flying 326s alt=40.003597259521484 lat=14.0288611 lon=100.4365014 agent=running trucks=3/3 | [  246.1s] SWEEP  -> wp 4/6 (60N, -100E)  dist 104.3 m
+03:45:21 flying 332s alt=39.9948616027832 lat=14.0288681 lon=100.4364278 agent=running trucks=3/3 | [  248.3s] STATUS SWEEP wp 4/6  dist 101.6 m  alt 40.0 m  heading 355
+03:45:26 flying 336s alt=40.00338363647461 lat=14.0288701 lon=100.436344 agent=running trucks=3/3 | [  253.3s] STATUS SWEEP wp 4/6  dist 93.2 m  alt 40.0 m  heading 356
+03:45:31 flying 342s alt=39.99796676635742 lat=14.0288718 lon=100.4362598 agent=running trucks=3/3 | [  258.3s] STATUS SWEEP wp 4/6  dist 83.7 m  alt 40.0 m  heading 356
+03:45:36 flying 346s alt=39.99950408935547 lat=14.0288734 lon=100.4361746 agent=running trucks=3/3 | [  263.3s] STATUS SWEEP wp 4/6  dist 75.0 m  alt 40.0 m  heading 356
+03:45:41 flying 352s alt=39.99983596801758 lat=14.028875 lon=100.4360905 agent=running trucks=3/3 | [  268.4s] STATUS SWEEP wp 4/6  dist 65.5 m  alt 40.0 m  heading 356
+03:45:46 flying 357s alt=39.99842834472656 lat=14.0288767 lon=100.4360067 agent=running trucks=3/3 | [  273.4s] STATUS SWEEP wp 4/6  dist 56.8 m  alt 40.0 m  heading 356
+03:45:52 flying 362s alt=40.001155853271484 lat=14.0288778 lon=100.4359219 agent=running trucks=3/3 | [  278.4s] STATUS SWEEP wp 4/6  dist 47.6 m  alt 40.0 m  heading 356
+03:45:57 flying 367s alt=39.99766540527344 lat=14.0288789 lon=100.4358382 agent=running trucks=3/3 | [  283.4s] STATUS SWEEP wp 4/6  dist 38.2 m  alt 40.0 m  heading 356
+03:46:02 flying 372s alt=40.00740432739258 lat=14.0288737 lon=100.4357578 agent=running trucks=3/3 | [  289.9s] APPROACH truck #4: 14.7 m away at 40 m, down to 22 m within 8 m
+03:46:07 flying 377s alt=38.77947998046875 lat=14.0288214 lon=100.4357262 agent=running trucks=3/3 | [  293.5s] STATUS APPROACH truck #4  dist 10.2 m  alt 40.0 m  heading 354
+03:46:12 flying 382s alt=34.190147399902344 lat=14.0287905 lon=100.4357137 agent=running trucks=3/3 | [  298.6s] STATUS APPROACH truck #4  dist 4.2 m  alt 37.1 m  heading 354
+03:46:17 flying 387s alt=31.896257400512695 lat=14.0287793 lon=100.4357095 agent=running trucks=3/3 | [  305.5s] GIVEUP truck #4: not seen again for 10 s (false positive?) -- keep sw
+03:46:22 flying 392s alt=40.2018928527832 lat=14.0287785 lon=100.4357094 agent=running trucks=3/3 | [  310.8s] STATUS SWEEP wp 4/6  dist 21.9 m  alt 39.0 m  heading 354
+03:46:27 flying 397s alt=39.994361877441406 lat=14.0288131 lon=100.4356508 agent=running trucks=3/3 | [  315.8s] STATUS SWEEP wp 4/6  dist 16.2 m  alt 40.0 m  heading 354
+03:46:32 flying 402s alt=39.989418029785156 lat=14.0288514 lon=100.4355865 agent=running trucks=3/3 | [  320.9s] STATUS SWEEP wp 4/6  dist 7.7 m  alt 40.0 m  heading 354
+03:46:37 flying 407s alt=39.995662689208984 lat=14.0288851 lon=100.435593 agent=running trucks=3/3 | [  326.0s] STATUS SWEEP wp 5/6  dist 113.0 m  alt 40.0 m  heading 355
+03:46:42 flying 412s alt=40.00205612182617 lat=14.0289271 lon=100.4356621 agent=running trucks=3/3 | [  331.1s] STATUS SWEEP wp 5/6  dist 103.7 m  alt 40.0 m  heading 355
+03:46:47 flying 417s alt=39.997802734375 lat=14.0289709 lon=100.4357345 agent=running trucks=3/3 | [  336.1s] STATUS SWEEP wp 5/6  dist 94.5 m  alt 40.0 m  heading 355
+03:46:52 flying 422s alt=40.003517150878906 lat=14.0290147 lon=100.4358062 agent=running trucks=3/3 | [  341.2s] STATUS SWEEP wp 5/6  dist 85.3 m  alt 40.0 m  heading 356
+03:46:57 flying 427s alt=39.997161865234375 lat=14.0290585 lon=100.4358774 agent=running trucks=3/3 | [  346.2s] STATUS SWEEP wp 5/6  dist 76.3 m  alt 40.0 m  heading 356
+03:47:02 flying 432s alt=40.00224685668945 lat=14.029103 lon=100.4359491 agent=running trucks=3/3 | [  351.3s] STATUS SWEEP wp 5/6  dist 67.1 m  alt 40.0 m  heading 356
+03:47:07 flying 437s alt=40.00025177001953 lat=14.0291469 lon=100.4360198 agent=running trucks=3/3 | [  356.3s] STATUS SWEEP wp 5/6  dist 58.0 m  alt 40.0 m  heading 356
+03:47:12 flying 442s alt=40.00019454956055 lat=14.0291914 lon=100.4360914 agent=running trucks=3/3 | [  361.3s] STATUS SWEEP wp 5/6  dist 48.8 m  alt 40.0 m  heading 356
+03:47:17 flying 447s alt=40.000946044921875 lat=14.0292353 lon=100.436162 agent=running trucks=3/3 | [  366.3s] STATUS SWEEP wp 5/6  dist 39.8 m  alt 40.0 m  heading 356
+03:47:22 flying 452s alt=39.99818420410156 lat=14.0292791 lon=100.4362328 agent=running trucks=3/3 | [  371.4s] STATUS SWEEP wp 5/6  dist 30.7 m  alt 40.0 m  heading 356
+03:47:27 flying 457s alt=40.00596618652344 lat=14.0293222 lon=100.4363025 agent=running trucks=3/3 | [  376.4s] STATUS SWEEP wp 5/6  dist 21.8 m  alt 40.0 m  heading 356
+03:47:32 flying 462s alt=40.000267028808594 lat=14.0293665 lon=100.4363739 agent=running trucks=3/3 | [  381.5s] STATUS SWEEP wp 5/6  dist 12.7 m  alt 40.0 m  heading 356
+03:47:37 flying 467s alt=40.0002326965332 lat=14.0294005 lon=100.4364278 agent=running trucks=3/3 | [  386.9s] SWEEP  -> wp 6/6 (120N, 100E)  dist 104.1 m
+03:47:42 flying 472s alt=39.9974365234375 lat=14.0294062 lon=100.4364984 agent=running trucks=3/3 | [  391.5s] STATUS SWEEP wp 6/6  dist 97.4 m  alt 40.0 m  heading 354
+03:47:47 flying 477s alt=40.0015754699707 lat=14.0294082 lon=100.4365823 agent=running trucks=3/3 | [  396.6s] STATUS SWEEP wp 6/6  dist 88.4 m  alt 40.0 m  heading 354
+03:47:52 flying 482s alt=39.99693298339844 lat=14.02941 lon=100.4366669 agent=running trucks=3/3 | [  401.6s] STATUS SWEEP wp 6/6  dist 78.9 m  alt 40.0 m  heading 355
+03:47:57 flying 487s alt=40.000022888183594 lat=14.0294117 lon=100.4367508 agent=running trucks=3/3 | [  406.6s] STATUS SWEEP wp 6/6  dist 70.2 m  alt 40.0 m  heading 355
+03:48:02 flying 492s alt=40.003379821777344 lat=14.0294133 lon=100.4368353 agent=running trucks=3/3 | [  411.7s] STATUS SWEEP wp 6/6  dist 60.7 m  alt 40.0 m  heading 355
+03:48:07 flying 497s alt=39.9965705871582 lat=14.0294147 lon=100.436919 agent=running trucks=3/3 | [  416.8s] STATUS SWEEP wp 6/6  dist 51.7 m  alt 40.0 m  heading 355
+03:48:12 flying 502s alt=40.00507354736328 lat=14.0294163 lon=100.4370036 agent=running trucks=3/3 | [  421.8s] STATUS SWEEP wp 6/6  dist 42.6 m  alt 40.0 m  heading 355
+03:48:17 flying 507s alt=39.99647521972656 lat=14.029418 lon=100.4370873 agent=running trucks=3/3 | [  426.8s] STATUS SWEEP wp 6/6  dist 33.5 m  alt 40.0 m  heading 355
+03:48:22 flying 512s alt=39.999671936035156 lat=14.0294195 lon=100.43717 agent=running trucks=3/3 | [  431.9s] STATUS SWEEP wp 6/6  dist 24.6 m  alt 40.0 m  heading 355
+03:48:27 flying 517s alt=39.99959945678711 lat=14.0294208 lon=100.4372538 agent=running trucks=3/3 | [  437.0s] STATUS SWEEP wp 6/6  dist 15.6 m  alt 40.0 m  heading 355
+03:48:32 flying 522s alt=39.999656677246094 lat=14.029422 lon=100.4373315 agent=running trucks=3/3 | [  442.1s] STATUS SWEEP wp 6/6  dist 6.7 m  alt 40.0 m  heading 355
+03:48:37 flying 527s alt=40.00493621826172 lat=14.0294225 lon=100.4373553 agent=running trucks=3/3 | [  443.7s] DONE   sweep complete (6/6 waypoints), 4 trucks found, holding
+03:48:42 flying 532s alt=39.991859436035156 lat=14.0294218 lon=100.4373542 agent=running trucks=3/3 | [  443.7s] DONE   sweep complete (6/6 waypoints), 4 trucks found, holding
+03:48:47 flying 537s alt=39.97903060913086 lat=14.0294213 lon=100.4373531 agent=running trucks=3/3 | [  443.7s] DONE   sweep complete (6/6 waypoints), 4 trucks found, holding
+03:48:52 flying 542s alt=39.98433303833008 lat=14.0294213 lon=100.4373529 agent=running trucks=3/3 | [  443.7s] DONE   sweep complete (6/6 waypoints), 4 trucks found, holding
+03:48:57 done 547s alt=39.98433303833008 lat=14.0294213 lon=100.4373529 agent=running trucks=3/3 | [  443.7s] DONE   sweep complete (6/6 waypoints), 4 trucks found, holding
+{"state": "done", "failed_in": null, "reason": null, "detail": "DONE logged; runner stopped the agent"}
+{"ended_by": "agent", "partial": false, "flight_s": 484.77, "distance_m": 556.2, "score": {"version": "v0", "score": 95.6, "recall": 1.0, "precision": 0.916, "trucks_found": 3, "trucks_total": 3}, "missing": []}
+total 38100
+drwxrwxr-x 2 innovation innovation     4096 Oct  5 03:48 .
+drwxrwxr-x 4 innovation innovation     4096 Oct  5 03:48 ..
+-rw-rw-r-- 1 innovation innovation      684 Oct  5 03:48 analysis.txt
+-rw-rw-r-- 1 innovation innovation   435221 Oct  5 03:48 detections.jsonl
+-rw-rw-r-- 1 innovation innovation 34515591 Oct  5 03:48 detections.mp4
+-rw-rw-r-- 1 innovation innovation    15462 Oct  5 03:48 events.jsonl
+-rw-rw-r-- 1 innovation innovation     3036 Oct  5 03:48 job.json
+-rw-rw-r-- 1 innovation innovation      542 Oct  5 03:48 meta.json
+-rw-rw-r-- 1 innovation innovation     8648 Oct  5 03:48 panel.log
+-rw-rw-r-- 1 innovation innovation     1072 Oct  5 03:48 result.json
+-rw-rw-r-- 1 innovation innovation      401 Oct  5 03:48 score.json
+-rw-rw-r-- 1 innovation innovation  3360429 Oct  5 03:48 telemetry.jsonl
+-rw-rw-r-- 1 innovation innovation   638724 Oct  5 03:48 track.jsonl

@@ -1,0 +1,19 @@
+{"job_id":"j-20261005-033711-4616","state":"queued","source":"registry"}
+03:37:11 pulling 0s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:37:16 pulling 5s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:37:21 booting 10s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:37:26 booting 15s alt=None lat=None lon=None agent=None trucks=None/None | 
+03:37:31 failed 20s alt=None lat=None lon=None agent=None trucks=None/None | 
+{"state": "failed", "failed_in": "booting", "reason": "sim_boot_timeout", "detail": "camera server http://127.0.0.1:8080/ not up after 420s; see /home/innovation/pai/drone-sitl/logs/launch-sitl.console"}
+{"ended_by": "error", "partial": true, "flight_s": 0.0, "distance_m": 0.0, "score": {"version": "v0", "score": 0.0, "recall": 0.0, "precision": 0.0, "trucks_found": 0, "trucks_total": 3}, "missing": ["detections.mp4", "meta.json"]}
+total 24
+drwxrwxr-x 2 innovation innovation 4096 Oct  5 03:37 .
+drwxrwxr-x 3 innovation innovation 4096 Oct  5 03:37 ..
+-rw-rw-r-- 1 innovation innovation    0 Oct  5 03:37 detections.jsonl
+-rw-rw-r-- 1 innovation innovation  457 Oct  5 03:37 events.jsonl
+-rw-rw-r-- 1 innovation innovation 1425 Oct  5 03:37 job.json
+-rw-rw-r-- 1 innovation innovation    0 Oct  5 03:37 panel.log
+-rw-rw-r-- 1 innovation innovation  969 Oct  5 03:37 result.json
+-rw-rw-r-- 1 innovation innovation  250 Oct  5 03:37 score.json
+-rw-rw-r-- 1 innovation innovation    0 Oct  5 03:37 telemetry.jsonl
+-rw-rw-r-- 1 innovation innovation    0 Oct  5 03:37 track.jsonl
