@@ -56,3 +56,4 @@ flight-service/
 | 2026-10-05 | คิว | **คิวหลักอยู่ที่ระบบพี่ต้น** · worker มีช่องรอเล็ก `MAX_PENDING=1` ไว้กันจังหวะชน/ตรวจเทียบ · เต็ม → `409` · degraded → `503` · `/healthz` = `ready`+`pending` · state จบตั้งหลัง cleanup · ตัดเทสต์คิวใหญ่เดิมออก (design 5, plan v3) |
 | 2026-10-05 | Docker Hub | `perkiepai/truck-detector` สร้างเป็น **private** ก่อน push (ตามที่สั่ง) |
 | 2026-10-05 | drone-sitl race | แก้ `run-website.sh` ที่ต้นทาง (`bda585c`) ตามที่อนุมัติ + หลักฐานทั้งสองโปรเจกต์ |
+| 2026-10-05 | ทางเข้างาน | รับงานได้แค่ทาง API ของ flight-service (curl / ระบบพี่ต้น) · หน้าเว็บ drone-sitl อัปโหลด/pull ไม่ได้ตอน flight-service เปิด (drone-sitl `205eaff`) · branch `feat/core` เก็บไว้ก่อน เจ้าของจัดการเอง |

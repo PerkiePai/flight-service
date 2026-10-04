@@ -52,3 +52,12 @@ index 7e11706..e3393de 100644
 - **เทสต์ใหม่ใน drone-sitl:** `streaming/tests/test_run_website.py` (RED → GREEN) · ทั้งชุด 257 passed
 - flight-service ไม่ต้องพึ่งการแก้นี้ (`c070270` รอ :8080 เองอยู่แล้ว)
 
+---
+
+# แก้ drone-sitl ครั้งที่ 3 — 2026-10-05: `DRONE_SITL_UPLOAD_TOKEN`
+
+- **หลักฐานฝั่ง drone-sitl:** `~/pai/drone-sitl/docs/changes/2026-10-05-upload-token.md` (commit `205eaff` โค้ด + เทสต์, ตามด้วยเอกสาร)
+- **อนุมัติโดย:** เจ้าของ flight-service, 2026-10-05: ให้เข้าได้แค่ทาง curl / ระบบพี่ต้น ไม่ใช้ร่วมกับหน้าเว็บ drone-sitl
+- **แก้:** ตอนที่ flight-service เปิดเว็บ drone-sitl จะส่ง token ที่สุ่มใหม่ทุกครั้งที่ service เริ่ม (`Settings.sitl_upload_token`) · `/agent/upload`, `/agent/upload-docker`, `/agent/pull-docker` ตอบ `403` ถ้าไม่มี `X-Upload-Token` ที่ตรงกัน · flight-service แนบ header เองตอน pull / ส่ง bundle (`7f85902`)
+- **ทดสอบจริง:** ยิง `:8090` ตรงระหว่างบิน → `403` ทั้ง 3 endpoint · pull และ bundle ของ flight-service ผ่าน
+

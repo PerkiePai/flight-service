@@ -130,6 +130,7 @@ curl -s -X POST -T bundle.tar -H "$H" "$R/jobs?kind=bundle&name=my-agent"
 
 - token ทุก endpoint ยกเว้น `/healthz` · allowlist ของ image · จำกัดเวลาบิน · จำกัดขนาด image 16 GB และดิสก์ว่าง ≥ 40 GB
 - container ของผู้แข่งรันด้วย `--memory 24g --pids-limit 1024 --cap-drop ALL --security-opt no-new-privileges` (ผ่าน `DRONE_SITL_DOCKER_RUN_ARGS` ของ drone-sitl)
+- **รับงานได้ทาง API นี้เท่านั้น:** ตอนที่ service เปิดเว็บ drone-sitl (`:8090`) การอัปโหลด/pull ที่หน้าเว็บนั้นตรง ๆ ได้ `403` (ใช้ token ที่ service สุ่มใหม่ทุกครั้งที่เริ่ม)
 - **ยังเสี่ยง:** container ใช้ `--network host` จึงเข้าถึง service อื่นบนเครื่องได้ (design 8) · ไม่มี TLS
 - ถ้า service ถูกปิดกลางบิน คลิป MP4 ของงานนั้นอาจไม่มี (journal ครบ) · kill ระหว่าง pull อาจทิ้ง image ไว้บนดิสก์
 

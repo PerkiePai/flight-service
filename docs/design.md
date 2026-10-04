@@ -339,7 +339,7 @@ endpoint เดียวกับการส่งชื่อ image (`POST /jo
 
 - ไฟล์ที่อัปโหลด = โค้ดที่ไม่รู้ที่มา เหมือนการ pull จึงใช้ token, timeout และ limit ของ container ชุดเดียวกัน
 - `name` ต้องตรง `^[a-z0-9][a-z0-9_-]{0,63}$` (ทั้งสองแบบ) · bundle ใหญ่ได้ไม่เกิน 200 MB (ลิมิตของ drone-sitl `AGENT_DOCKER_MAX_BYTES`)
-- ไม่มีการแตกไฟล์ลงดิสก์เอง อ่านแค่ metadata ใน tar · **`_safe_extract` ของ drone-sitl กันชื่อไฟล์ `../` ได้แต่ไม่กัน symlink** (review 2026-10-05) flight-service จึงตรวจ bundle เองก่อนส่ง · ทางแก้ต้นทาง: `tar.extractall(dest, filter="data")` ใน drone-sitl (ต้องขออนุมัติ)
+- ไม่มีการแตกไฟล์ลงดิสก์เอง อ่านแค่ metadata ใน tar · **`_safe_extract` ของ drone-sitl กันชื่อไฟล์ `../` ได้แต่ไม่กัน symlink** (review 2026-10-05) flight-service จึงตรวจ bundle เองก่อนส่ง · **และปิดทางเข้าตรง:** ตอน flight-service เปิดเว็บ drone-sitl การอัปโหลด/pull ที่ `:8090` ต้องมี token ที่ flight-service สุ่มไว้ (`DRONE_SITL_UPLOAD_TOKEN`, ตัดสินใจ 2026-10-05: รับงานได้แค่ทาง curl / ระบบพี่ต้น)
 - ⚠️ อ่าน manifest ในไฟล์ `.gz` ต้องคลายไฟล์ทั้งไฟล์ (หลายนาทีสำหรับ 12 GB) ถ้าเป็น `.tar` ธรรมดาจะเร็วกว่ามาก
 
 ### ทำเมื่อไร

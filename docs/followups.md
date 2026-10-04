@@ -3,9 +3,9 @@
 ข้อเล็กที่ reviewer พบและยังไม่ได้แก้ (ทั้งหมดจัดเป็น Minor ตามผลกระทบ) · ข้อ Critical/Important แก้แล้วทั้งหมด (`234a650`, `5d368b6`)
 รายละเอียดเต็มของแต่ละข้ออยู่ในรายงานรีวิว ส่วนที่นี่คือรายการสำหรับวางแผนต่อ
 
-## รอการตัดสินใจ
+## ตัดสินใจแล้ว
 
-- **drone-sitl `_safe_extract`** (`streaming/docker_build.py`) กันชื่อ `../` แต่ไม่กัน symlink/hardlink → ใครอัปโหลด bundle ผ่านเว็บ drone-sitl ตรง ๆ ยังเขียนไฟล์นอกโฟลเดอร์ build ได้ · flight-service ตรวจ bundle เองก่อนส่งแล้ว (ทางของเราปลอดภัย) · ทางแก้ต้นทาง: `tar.extractall(dest, filter="data")` — **ต้องขออนุมัติแก้ drone-sitl**
+- **drone-sitl `_safe_extract`** กันชื่อ `../` แต่ไม่กัน symlink/hardlink · ตัดสินใจ (2026-10-05): **ไม่แก้ตัวแตกไฟล์ แต่ปิดทางเข้าตรง** ตอน flight-service เปิดเว็บ drone-sitl การอัปโหลด/pull ที่ `:8090` ต้องมี token ของ flight-service (drone-sitl `205eaff`, flight-service `7f85902`) · **ยังเสี่ยงเฉพาะตอนเปิดเว็บ drone-sitl ด้วยมือ** (ไม่มี token) แล้วอัปโหลด bundle ที่ไม่น่าไว้ใจผ่านหน้าเว็บ
 
 ## ข้อเล็กที่ยังไม่แก้
 
