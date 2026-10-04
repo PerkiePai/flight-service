@@ -72,6 +72,13 @@ class FakeDocker:
         self.calls.append(("rmi", ref))
         return True
 
+    async def load(self, path, timeout):
+        self.calls.append(("load", str(path)))
+        return ["truck:1"]
+
+    async def tag(self, src, dst):
+        self.calls.append(("tag", src, dst))
+
 
 class FakeSim:
     def __init__(self, busy=False, fail=None, stop_ok=True):

@@ -275,3 +275,45 @@ def test_service_shutdown_is_not_a_kill(tmp_path):
     again = fresh.get(job.id)
     assert (again.state, again.reason, again.result["ended_by"]) == \
         (FAILED, "runner_restarted", "runner_restarted")
+
+
+import io
+import tarfile
+
+
+def upload_job(store, kind="image", tags=("truck:1",)):
+    job = store.new(f"upload:{kind}:truck", 600, source="upload", upload_kind=kind, upload_name="truck")
+    with tarfile.open(store.dir(job) / "upload.tar", "w") as tar:
+        data = json.dumps([{"Config": "c", "RepoTags": list(tags), "Layers": []}]).encode()
+        info = tarfile.TarInfo("manifest.json")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    return job
+
+
+def test_image_archive_upload_flies_and_cleans_up(tmp_path):
+    docker, sim = FakeDocker(), FakeSim()
+    _, store, w = setup(tmp_path, docker=docker, sim=sim)
+    job = upload_job(store)
+    asyncio.run(w.run_job(job))
+    assert job.state == DONE, (job.reason, job.detail)
+    assert job.image_tag.startswith("submission-truck-")
+    assert ("tag", "truck:1", job.image_tag) in docker.calls
+    assert ("rmi", "truck:1") in docker.calls                  # the archive's own tag
+    assert ("rmi", job.image_tag) in docker.calls              # cleanup
+    assert ("rmi", job.image) not in docker.calls
+    assert not (store.dir(job) / "upload.tar").exists()
+    assert sim.calls == ["busy", "start_sim", "wait_px4_ready", "stop"]
+    ev = list(read_jsonl(store.dir(job) / "events.jsonl"))
+    assert [e["state"] for e in ev if e["kind"] == "state"][0] == "loading"
+
+
+def test_archive_tag_that_exists_is_rejected(tmp_path):
+    docker = FakeDocker(exists=True)
+    _, store, w = setup(tmp_path, docker=docker)
+    job = upload_job(store, tags=("competition-base:latest",))
+    asyncio.run(w.run_job(job))
+    assert (job.state, job.reason, job.failed_in) == (FAILED, "archive_rejected", "loading")
+    assert not any(c[0] == "load" for c in docker.calls)
+    assert ("rmi", "competition-base:latest") not in docker.calls
+    assert not (store.dir(job) / "upload.tar").exists()

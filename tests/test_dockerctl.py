@@ -53,3 +53,19 @@ def test_exists_only_says_absent_when_docker_says_so():
                       (1, "permission denied while trying to connect")]:
         d = Docker(Rec({("image", "inspect"): (code, out)}))
         assert asyncio.run(d.exists("perkiepai/x:1")) is True, out
+
+
+def test_load_parses_what_was_loaded():
+    out = "Loaded image: truck:1\nLoaded image ID: sha256:abc\n"
+    d = Docker(Rec({("load", "-i"): (0, out)}))
+    assert asyncio.run(d.load("/x.tar", 60)) == ["truck:1", "sha256:abc"]
+
+
+def test_load_and_tag_failures_raise():
+    import pytest
+    from flight_service.jobs import JobFailed
+    d = Docker(Rec({("load", "-i"): (1, "invalid tar header"), ("tag", "a"): (1, "no such image")}))
+    for coro in (d.load("/x.tar", 60), d.tag("a", "b")):
+        with pytest.raises(JobFailed) as e:
+            asyncio.run(coro)
+        assert e.value.reason == "load_failed"

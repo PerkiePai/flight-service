@@ -4,6 +4,7 @@ pattern: every call names one image or one container (trap 6)."""
 import asyncio
 
 from . import policy
+from .jobs import JobFailed
 
 
 async def sh(*argv, timeout=60.0, env=None, cwd=None):
@@ -60,3 +61,21 @@ class Docker:
     async def rmi(self, ref):
         code, _ = await self.run("docker", "rmi", ref, timeout=120)
         return code == 0
+
+    async def load(self, path, timeout):
+        """docker load -i; what it loaded (names, or image IDs if untagged)."""
+        code, out = await self.run("docker", "load", "-i", str(path), timeout=timeout)
+        if code != 0:
+            raise JobFailed("load_failed", tail(out))
+        loaded = []
+        for line in out.splitlines():
+            for prefix in ("Loaded image ID: ", "Loaded image: "):
+                if line.startswith(prefix):
+                    loaded.append(line[len(prefix):].strip())
+                    break
+        return loaded
+
+    async def tag(self, src, dst):
+        code, out = await self.run("docker", "tag", src, dst, timeout=30)
+        if code != 0:
+            raise JobFailed("load_failed", tail(out))

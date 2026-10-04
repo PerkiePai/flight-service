@@ -8,10 +8,10 @@ import shutil
 import time
 
 from . import finalize as fin
-from . import flightsession, policy, retention
+from . import archive, flightsession, policy, retention
 from . import score as scoring
 from .config import GB
-from .jobs import (BOOTING, DONE, FAILED, FLYING, KILLED, PULLING, QUEUED,
+from .jobs import (BOOTING, DONE, FAILED, FLYING, KILLED, LOADING, PULLING, QUEUED,
                    RUNNING_MARK, TERMINAL, JobFailed)
 from .runlog import RunLog
 
@@ -160,10 +160,48 @@ class Worker:
                                         "running and this runner did not start it")
 
     async def _acquire(self, job, runlog):
-        """Put the image on this box as job.image_tag. Part B adds uploads."""
-        if job.source != "registry":
+        """Put the image on this box as job.image_tag."""
+        if job.source == "registry":
+            await self._pull(job, runlog)
+        elif job.source == "upload":
+            await self._load(job, runlog)
+        else:
             raise JobFailed("unsupported_source", job.source)
-        await self._pull(job, runlog)
+
+    async def _load(self, job, runlog):
+        await self._precheck(job, runlog, LOADING)
+        upload = self.store.dir(job) / "upload.tar"
+        try:
+            if job.upload_kind == "image":
+                await self._load_image(job, upload)
+            elif job.upload_kind == "bundle":
+                await self._load_bundle(job, upload)
+            else:
+                raise JobFailed("unsupported_source", f"upload kind {job.upload_kind!r}")
+            self.store.save(job)
+        finally:
+            upload.unlink(missing_ok=True)          # up to 16 GB: not kept for the flight
+        await self._check_size(job)
+
+    async def _load_image(self, job, upload):
+        tags = await asyncio.to_thread(archive.repo_tags, upload)
+        for t in tags:
+            if await self.docker.exists(t):
+                raise JobFailed("archive_rejected",
+                                f"archive tag {t} already exists on this box and would be overwritten")
+        loaded = await self.docker.load(upload, self.s.pull_timeout_s)
+        if not loaded:
+            raise JobFailed("load_failed", "docker load reported nothing loaded")
+        tag = f"submission-{job.upload_name}-{time.strftime('%Y%m%d-%H%M%S')}"
+        try:
+            await self.docker.tag(loaded[0], tag)
+            job.image_tag = tag
+        finally:
+            for t in tags:                          # untag what the archive brought in;
+                await self.docker.rmi(t)            # the image stays under our own tag
+
+    async def _load_bundle(self, job, upload):     # replaced in B3
+        raise JobFailed("unsupported_source", "bundle uploads come in B3")
 
     async def _pull(self, job, runlog):
         await self._precheck(job, runlog, PULLING)
