@@ -1,6 +1,6 @@
 # flight-service
 
-รับ docker image ของผู้แข่ง (ชื่อบน registry) ด้วย curl ครั้งเดียว → บินใน sim (Isaac Sim + PX4 ผ่าน `~/pai/drone-sitl`) อัตโนมัติ → คืนสถานะ ข้อมูลการบิน คลิป MP4 และ detection score
+รับ docker image ของผู้แข่ง (ชื่อบน registry หรือไฟล์ `docker save` / build bundle) ด้วย curl ครั้งเดียว → บินใน sim (Isaac Sim + PX4 ผ่าน `~/pai/drone-sitl`) อัตโนมัติ → คืนสถานะ ข้อมูลการบิน คลิป MP4 และ detection score
 ทำทีละ 1 งาน (+ ช่องรอ 1 งาน) · คิวหลักอยู่ที่ระบบของผู้เรียก · ทุกข้อมูลเขียนเป็น journal ทันทีที่ได้ จบทางไหน (รวม kill) ก็ได้ผลรูปแบบเดียว
 ทุกงานบูต sim ใหม่และปิดเมื่อจบ ลบ image/container ที่งานนำเข้ามา แต่เก็บข้อมูลไว้ดูย้อนหลัง (≤ 10 GB)
 
@@ -69,16 +69,32 @@ curl -s -X POST $R/jobs/j-20261005-033950-b5fa/kill -H "$H"     # 200 = จบ�
 curl -s -o clip.mp4 $R/jobs/j-20261005-033950-b5fa/files/detections.mp4 -H "$H"
 ```
 
+### ส่งไฟล์ image แทนชื่อ image
+
+endpoint เดียวกัน (`POST /jobs`) ส่งเป็นไฟล์ด้วย `curl -T` (stream ไม่โหลดเข้า RAM · ห้ามใช้ `--data-binary`) พร้อม `?kind=&name=`
+
+```bash
+# ผลของ docker save (.tar หรือ .tar.gz) · ≤ 16 GB · ชื่อ image ในไฟล์ต้องยังไม่มีบนเครื่อง
+docker save my-agent:1 -o agent.tar
+curl -s -X POST -T agent.tar -H "$H" "$R/jobs?kind=image&name=my-agent&flight_timeout_s=600"
+
+# build bundle: tar ที่มี Dockerfile (FROM competition-base) + โค้ด · ≤ 200 MB · ไฟล์ธรรมดาเท่านั้น (ไม่มี symlink)
+curl -s -X POST -T bundle.tar -H "$H" "$R/jobs?kind=bundle&name=my-agent"
+```
+
+ไม่ผ่าน: `409` ช่องรอเต็ม (ไม่รับไฟล์) · `411` ไม่มี Content-Length · `413` ใหญ่เกิน · `507` ดิสก์ไม่พอ · `408` ไม่มีข้อมูลเข้ามา 60 s · ไฟล์ผิดรูปแบบ/ชื่อชน/มี link → งาน `failed` ด้วย `archive_rejected`
+
 ทดลองครบวงจรด้วยสคริปต์ที่ทำตัวเป็นผู้เรียก: `./scripts/mock-caller.sh <image> [flight_timeout_s]` (ผลอยู่ใน `mock-out/<job_id>/` · `KILL_AFTER_S=90` = kill หลังบิน 90 s)
 
 ### state ของงาน
 
-`queued` → `pulling` → `booting` → `flying` → `done` · ผิดพลาด → `failed` (มี `failed_in`, `reason`, `detail`) · สั่งหยุด → `killed`
+`queued` → `pulling` (หรือ `loading` เมื่อส่งไฟล์) → `booting` → `flying` → `done` · ผิดพลาด → `failed` (มี `failed_in`, `reason`, `detail`) · สั่งหยุด → `killed`
 **state จบ (`done`/`failed`/`killed`) = finalize + cleanup เสร็จแล้ว** ส่งงานถัดไปได้ทันที
 
 | reason | ความหมาย |
 |---|---|
 | `pull_failed` · `disk_low` · `image_too_large` | ดึง image ไม่ได้ / ดิสก์ไม่พอ / image ใหญ่เกิน 16 GB |
+| `archive_rejected` · `load_failed` | ไฟล์ที่ส่งมาไม่ปลอดภัยหรือชื่อชน / `docker load` หรือ build ล้ม |
 | `sim_busy` | มี sim หรือเว็บที่ service ไม่ได้เปิดเองรันอยู่ |
 | `web_start_failed` · `sim_boot_timeout` · `px4_not_ready` | เปิดเว็บ drone-sitl ไม่ได้ / Isaac ไม่ขึ้นใน 420 s / PX4 ไม่พร้อมใน 180 s |
 | `run_refused` · `arming_timeout` | agent ไม่เริ่ม / ค้างที่ arming เกิน 90 s |

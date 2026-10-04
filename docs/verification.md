@@ -70,3 +70,21 @@
    - **drone-sitl ไม่ได้แก้** (ต้องขออนุมัติ) · ถ้าจะแก้ต้นทาง: ให้ลูปใน `run-website.sh` `sleep` ก่อนเช็ก `isaac_running` หรือให้เวลาผ่อนผันสัก 10–30 s
    - cleanup ของรอบที่ล้มถูกต้อง: sim ปิด, tag ของงานถูกลบ, image ต้นทางยังอยู่
 2. **ยังไม่ได้ทดสอบ: kill ระหว่าง pull** (reviewer แนะนำ) · image อยู่บนเครื่องแล้ว pull จึงจบใน ~5 s จับจังหวะไม่ได้ · ความเสี่ยงที่ image ค้างยังอยู่ในรายการ deferred
+
+---
+
+# ส่วน B4: ทดสอบจริงแบบอัปโหลดไฟล์ · 2026-10-05
+
+> **สรุป: ผ่าน** ทั้งสองแบบบินจบ `done` · หลังแก้ตามรีวิวรอบ B ทดสอบซ้ำบนของจริง: archive ปกติผ่าน, archive ที่ชื่อชนของเดิมถูกปฏิเสธก่อน load · drone-sitl `run-website.sh` ที่แก้ race (`bda585c`) ใช้บูตทุกรอบ ไม่มี boot ล้มอีก
+
+| รอบ | ไฟล์ | ผล |
+|---|---|---|
+| archive (`docker save`) | 4.4 GB (`truck-upload-test:1` ชั่วคราว) | `curl -T` 4.7 s → `202` · `loading` ~10 s · บิน 507 s · **`done` score 94.6 (3/3)** · ไฟล์ครบ (`j-20261005-040637-9b2e`) |
+| bundle (Dockerfile + โค้ด) | 128 MB (`truck-detector.tar`) | `202` ใน 0.08 s · drone-sitl build ~4.7 นาที · บิน 484 s · **`done` score 97.6 (3/3)** · ไฟล์ครบ (`j-20261005-041618-4526`) |
+| **หลังแก้รีวิว:** archive ชื่อชน | `docker save hello-world` (index.json ตั้งชื่อ `docker.io/library/hello-world:latest` ซึ่งมีอยู่แล้ว) | `failed / loading / archive_rejected` ก่อน `docker load` · image เดิม ID ไม่เปลี่ยน · ไฟล์อัปโหลดถูกลบ (`j-20261005-043015-9deb`) |
+| **หลังแก้รีวิว:** archive ปกติ + kill | 4.4 GB | ชื่อจาก `manifest.json` และ `index.json` รวมเป็น `docker.io/library/truck-upload-test:1` ชื่อเดียว · ชื่อหลัง load ตรงกับที่ตรวจ · ระหว่างบินเหลือแค่ tag `submission-truck-detector-20261005-043118` · kill → `200 killed` (`j-20261005-043109-3d64`) |
+
+**ตรวจหลังทุกรอบ:** sim ปิด · `/healthz` idle · tag ชั่วคราวและ tag `submission-…` ของแต่ละงานถูกลบ · `data/uploads/` ว่าง · image ต้นทางที่มีอยู่ก่อนไม่ถูกแตะ · ดิสก์ว่าง 111 GB
+
+**ข้อสังเกต:** drone-sitl เก็บสำเนา bundle ทุกไฟล์ไว้ใน `logs/docker-agents/` (ไฟล์ละ 128 MB) ตามพฤติกรรมเดิมของมัน · บันทึกเป็น minor (M4)
+

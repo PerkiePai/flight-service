@@ -8,8 +8,8 @@
 | 2 | โครงโฟลเดอร์ + แผน | `docs/plan.md` v3 (Task 1–14 + ส่วน B1–B4) · สรุป API + diagram 8 ภาพ: `docs/api.md` | ✅ อนุมัติ 2026-10-05 |
 | 3 | โค้ด + เทสต์ (ของปลอม ไม่เปิด sim) | plan Task 1–12 · pytest ผ่าน · แก้ drone-sitl + หลักฐาน | ✅ Task 1–12 เสร็จ · review ทั้ง branch แล้ว (แก้ Important 3 + docs routes ใน `234a650`) · drone-sitl 255 ผ่าน (`ed5f998`, `1b2ba82`) · smoke test ผ่าน · branch `feat/core` |
 | 4 | ทดสอบจริง | plan Task 13 · บินเต็ม + kill + pull ล้ม + (เพิ่ม) ช่องรอ/ดาวน์โหลดระหว่างบิน/SIGTERM · `docs/verification.md` | ✅ ผ่านทุกรอบ · บินจบ score 95.6 รถ 3/3 · เจอ race ตอนบูตใน run-website.sh แก้ฝั่งเรา (`c070270`) · ⛔ รออนุมัติขั้น 5 |
-| 5 | README | plan Task 14 | ⬜ |
-| B | รับไฟล์ image ผ่าน curl (archive + bundle) | design 12 · plan B1–B4 | ⬜ ทำหลังขั้น 5 |
+| 5 | README | plan Task 14 | ✅ `README.md` (ทำตามจริง 1 รอบ) |
+| B | รับไฟล์ image ผ่าน curl (archive + bundle) | design 12 · plan B1–B4 | ✅ โค้ด + review (แก้ Critical 3 + Important 3 ใน `5d368b6`) · บินจริงทั้งสองแบบ `done` · 145 tests ผ่าน |
 
 ## โครงโฟลเดอร์ (สร้างใน Task 1)
 
@@ -55,3 +55,4 @@ flight-service/
 | 2026-10-05 | สั่งบิน | ต่อ `/ws` เอง ไม่ import `fly()` (เหตุผลใน design 10) |
 | 2026-10-05 | คิว | **คิวหลักอยู่ที่ระบบพี่ต้น** · worker มีช่องรอเล็ก `MAX_PENDING=1` ไว้กันจังหวะชน/ตรวจเทียบ · เต็ม → `409` · degraded → `503` · `/healthz` = `ready`+`pending` · state จบตั้งหลัง cleanup · ตัดเทสต์คิวใหญ่เดิมออก (design 5, plan v3) |
 | 2026-10-05 | Docker Hub | `perkiepai/truck-detector` สร้างเป็น **private** ก่อน push (ตามที่สั่ง) |
+\n| 2026-10-05 | drone-sitl race | แก้ `run-website.sh` ที่ต้นทาง (`bda585c`) ตามที่อนุมัติ + หลักฐานทั้งสองโปรเจกต์ |\n
