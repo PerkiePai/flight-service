@@ -1,7 +1,8 @@
 """Settings from the environment -- one place for every limit and timeout
 (design sections 5, 6, 8, 12, 13)."""
 import os
-from dataclasses import dataclass
+import secrets
+from dataclasses import dataclass, field
 from pathlib import Path
 
 GB = 1024 ** 3
@@ -44,6 +45,10 @@ class Settings:
     docker_run_args: str = DEFAULT_RUN_ARGS
     keep_image: bool = False
     site: str = "nt-testgs"
+    # Given to the drone-sitl web server this service starts: only a request
+    # carrying it may upload or pull there, so submissions arrive through this
+    # API alone. New every service start; never leaves this machine.
+    sitl_upload_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     @property
     def uploads_dir(self):

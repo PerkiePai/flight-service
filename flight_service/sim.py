@@ -47,7 +47,8 @@ class SimControl:
                               capture_output=True).returncode == 0
 
     def _env(self, **extra):
-        return {**os.environ, "DRONE_SITL_DOCKER_RUN_ARGS": self.s.docker_run_args, **extra}
+        return {**os.environ, "DRONE_SITL_DOCKER_RUN_ARGS": self.s.docker_run_args,
+                "DRONE_SITL_UPLOAD_TOKEN": self.s.sitl_upload_token, **extra}
 
     async def _up(self, url):
         return await asyncio.to_thread(self.up, url)

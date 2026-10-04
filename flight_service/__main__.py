@@ -14,7 +14,8 @@ from .worker import Worker
 
 def build(settings):
     store = JobStore(settings.runs_dir)
-    worker = Worker(settings, store, Docker(), SimControl(settings), Sitl(settings.web_url))
+    worker = Worker(settings, store, Docker(), SimControl(settings),
+                    Sitl(settings.web_url, token=settings.sitl_upload_token))
     return create_app(settings, store, worker)
 
 

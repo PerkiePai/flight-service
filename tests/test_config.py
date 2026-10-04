@@ -23,6 +23,12 @@ def test_from_env_defaults():
     assert "--cap-drop ALL" in s.docker_run_args and s.keep_image is False
 
 
+def test_each_service_start_gets_its_own_drone_sitl_upload_token():
+    a, b = Settings.from_env({"RUNNER_TOKEN": TOKEN}), Settings.from_env({"RUNNER_TOKEN": TOKEN})
+    assert len(a.sitl_upload_token) >= 32 and a.sitl_upload_token != b.sitl_upload_token
+    assert a.sitl_upload_token != a.token
+
+
 def test_from_env_overrides(tmp_path):
     s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": str(tmp_path),
                            "ALLOWED_IMAGES": "^a$ ^b$", "KEEP_IMAGE": "1",

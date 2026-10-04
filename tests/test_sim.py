@@ -37,11 +37,13 @@ def test_px4_ready_needs_the_line_and_a_fresh_file(tmp_path):
 
 
 def test_start_web_passes_skip_sim_and_run_args(tmp_path):
-    run = Runs()
-    asyncio.run(SimControl(settings(tmp_path), run=run, up=lambda u, timeout=3.0: True).start_web())
+    run, s = Runs(), settings(tmp_path)
+    asyncio.run(SimControl(s, run=run, up=lambda u, timeout=3.0: True).start_web())
     argv, env = run.calls[0]
     assert argv[0].endswith("sim/run-website.sh") and env["SKIP_SIM"] == "1"
     assert "--cap-drop ALL" in env["DRONE_SITL_DOCKER_RUN_ARGS"]
+    # flight-service owns the server it starts: only it may upload or pull there
+    assert env["DRONE_SITL_UPLOAD_TOKEN"] == s.sitl_upload_token != ""
 
 
 def test_start_sim_fails_when_camera_never_answers(tmp_path):

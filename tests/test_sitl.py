@@ -9,7 +9,7 @@ from flight_service.sitl import Sitl
 def test_pull_quotes_the_ref_and_returns_the_tag():
     seen = []
 
-    def call(method, url, timeout):
+    def call(method, url, timeout, headers=None):
         seen.append((method, url, timeout))
         return 200, {"image_tag": "submission-truck-detector-20261005-120000"}
 
@@ -20,14 +20,14 @@ def test_pull_quotes_the_ref_and_returns_the_tag():
 
 def test_pull_failure_carries_the_log_tail():
     with pytest.raises(JobFailed) as e:
-        asyncio.run(Sitl("http://w", lambda m, u, t: (400, {"detail": "pull failed",
+        asyncio.run(Sitl("http://w", lambda m, u, t, headers=None: (400, {"detail": "pull failed",
                                                              "log": ["a", "manifest unknown"]})).pull("perkiepai/x:1", 5))
     assert e.value.reason == "pull_failed" and "manifest unknown" in e.value.detail
 
 
 def test_detrec_status():
-    assert asyncio.run(Sitl("http://w", lambda m, u, t: (200, {"on": False})).detrec_status()) == {"on": False}
-    assert asyncio.run(Sitl("http://w", lambda m, u, t: (None, {})).detrec_status()) is None
+    assert asyncio.run(Sitl("http://w", lambda m, u, t, headers=None: (200, {"on": False})).detrec_status()) == {"on": False}
+    assert asyncio.run(Sitl("http://w", lambda m, u, t, headers=None: (None, {})).detrec_status()) is None
 
 
 def test_upload_bundle_streams_the_file(tmp_path):
@@ -35,7 +35,7 @@ def test_upload_bundle_streams_the_file(tmp_path):
     p.write_bytes(b"tar")
     seen = []
 
-    def send_file(url, path, timeout):
+    def send_file(url, path, timeout, headers=None):
         seen.append((url, str(path), timeout))
         return 200, {"stored": "truck-1.tar", "image_tag": "submission-truck-20261005-120000"}
 
@@ -46,7 +46,7 @@ def test_upload_bundle_streams_the_file(tmp_path):
 
 def test_upload_bundle_build_failure():
     with pytest.raises(JobFailed) as e:
-        asyncio.run(Sitl("http://w", send_file=lambda u, p, t: (400, {"detail": "build failed",
+        asyncio.run(Sitl("http://w", send_file=lambda u, p, t, headers=None: (400, {"detail": "build failed",
                                                                        "log": ["pip: no such package"]}))
                     .upload_bundle("/x.tar", "truck", 5))
     assert e.value.reason == "load_failed" and "pip" in e.value.detail
@@ -79,3 +79,21 @@ def test_send_file_streams_a_real_file_to_a_server(tmp_path):
     code, body = _send_file(f"http://127.0.0.1:{srv.server_port}/agent/upload-docker?name=t.tar", p, 10)
     srv.server_close()
     assert (code, body) == (200, {"image_tag": "submission-t-1"}) and got["body"] == b"x" * 300_000
+
+
+def test_pull_and_bundle_carry_the_upload_token():
+    """drone-sitl started by flight-service refuses uploads/pulls without it."""
+    got = []
+
+    def call(method, url, timeout, headers=None):
+        got.append(headers)
+        return 200, {"image_tag": "submission-x-1"}
+
+    def send_file(url, path, timeout, headers=None):
+        got.append(headers)
+        return 200, {"image_tag": "submission-x-1"}
+
+    sitl = Sitl("http://w", call, send_file=send_file, token="k" * 32)
+    asyncio.run(sitl.pull("perkiepai/x:1", 5))
+    asyncio.run(sitl.upload_bundle("/x.tar", "x", 5))
+    assert got == [{"X-Upload-Token": "k" * 32}] * 2
