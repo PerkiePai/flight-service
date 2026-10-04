@@ -1,0 +1,42 @@
+# แก้ drone-sitl ที่อนุมัติแล้ว — 2026-10-05: `DRONE_SITL_DOCKER_RUN_ARGS` สำหรับ `docker run` ของ agent
+
+- **หลักฐานฝั่ง drone-sitl:** `~/pai/drone-sitl/docs/changes/2026-10-05-docker-run-args.md` (commit `ed5f998` + เอกสารนี้)
+- **อนุมัติโดย:** เจ้าของ flight-service, 2026-10-05 (`~/pai/flight-service/docs/design.md` หัวข้อ 8 และ 11 ข้อ 5)
+- **ทำไม:** flight-service รัน image ของคนอื่นแบบอัตโนมัติ ต้องจำกัด memory/pids และตัด capability ของ container ได้ โดยพฤติกรรมเดิมของเว็บไม่เปลี่ยน
+- **แก้อะไร:** `joystick-server.py` `AgentRun._spawn` อ่าน env `DRONE_SITL_DOCKER_RUN_ARGS` (`shlex.split`) ใส่ต่อหลัง `--gpus all` ก่อน `--name` · ไม่ตั้ง env = command line เดิมทุกตัว
+- **ค่าที่ flight-service ส่ง:** `--memory 24g --memory-swap 24g --pids-limit 1024 --cap-drop ALL --security-opt no-new-privileges` (`flight_service/config.py` `DEFAULT_RUN_ARGS`)
+- **เทสต์:** `streaming/tests/test_web_ui.py::test_agent_run_docker_appends_extra_run_args_from_env` (ใหม่ · เห็น FAIL ก่อนแก้ แล้ว PASS หลังแก้) · ทั้งชุด `pytest streaming/tests competition/tests examples/competition-submission` → **255 passed**
+- **commit:** `ed5f998` บน `feat/website-usd-map-testgs` (ก่อนแก้ HEAD = `326290e`) · ยังไม่ push
+- **ย้อนกลับ:** `git revert ed5f998` หรือไม่ตั้ง env (ผลเหมือนก่อนแก้)
+- **ยังต้องยืนยันตอนบินจริง (flight-service Task 13):** `--cap-drop ALL` ไม่ทำให้ GPU/agent ใน container พัง
+
+## diff
+
+```diff
+diff --git a/joystick-server.py b/joystick-server.py
+index 7e11706..e3393de 100644
+--- a/joystick-server.py
++++ b/joystick-server.py
+@@ -20,6 +20,7 @@ import json
+ import math
+ import os
+ import queue
++import shlex
+ import shutil
+ import subprocess
+ import sys
+@@ -557,8 +558,12 @@ class AgentRun:
+             # box). shutil.which is what --gpus actually needs present.
+             gpu_flags = (["--gpus", "all"]
+                         if shutil.which("nvidia-container-runtime") else [])
++            # Extra `docker run` flags from whoever started this server --
++            # flight-service passes resource limits and --cap-drop ALL for
++            # images it pulled. Unset = exactly the old command line.
++            extra = shlex.split(os.environ.get("DRONE_SITL_DOCKER_RUN_ARGS", ""))
+             self._proc = subprocess.Popen(
+-                ["docker", "run", "--rm", "--network", "host", *gpu_flags,
++                ["docker", "run", "--rm", "--network", "host", *gpu_flags, *extra,
+                  "--name", self._container_name, self.file],
+                 cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                 text=True, bufsize=1)
+```
