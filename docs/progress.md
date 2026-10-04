@@ -55,4 +55,4 @@ flight-service/
 | 2026-10-05 | สั่งบิน | ต่อ `/ws` เอง ไม่ import `fly()` (เหตุผลใน design 10) |
 | 2026-10-05 | คิว | **คิวหลักอยู่ที่ระบบพี่ต้น** · worker มีช่องรอเล็ก `MAX_PENDING=1` ไว้กันจังหวะชน/ตรวจเทียบ · เต็ม → `409` · degraded → `503` · `/healthz` = `ready`+`pending` · state จบตั้งหลัง cleanup · ตัดเทสต์คิวใหญ่เดิมออก (design 5, plan v3) |
 | 2026-10-05 | Docker Hub | `perkiepai/truck-detector` สร้างเป็น **private** ก่อน push (ตามที่สั่ง) |
-\n| 2026-10-05 | drone-sitl race | แก้ `run-website.sh` ที่ต้นทาง (`bda585c`) ตามที่อนุมัติ + หลักฐานทั้งสองโปรเจกต์ |\n
+| 2026-10-05 | drone-sitl race | แก้ `run-website.sh` ที่ต้นทาง (`bda585c`) ตามที่อนุมัติ + หลักฐานทั้งสองโปรเจกต์ |
