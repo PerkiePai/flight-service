@@ -38,3 +38,94 @@ def frame(state, log=(), lat=14.0, lon=100.0, alt=20.0, boxes=()):
             "roll_deg": 0.0, "pitch_deg": 0.0, "gs": 3.0, "vz": 0.0, "mode": "OFFBOARD",
             "armed": True,
             "agent": {"state": state, "log": list(log), "detections": list(boxes)}}
+
+
+# --- pipeline fakes (Task 9) ------------------------------------------------
+import os
+import time
+
+from flight_service.flightsession import Outcome
+from flight_service.jobs import JobFailed
+
+
+class FakeDocker:
+    def __init__(self, exists=False, size=5 * 1024 ** 3, manifest=4 * 1024 ** 3):
+        self._exists, self._size, self._manifest, self.calls = exists, size, manifest, []
+
+    async def exists(self, ref):
+        self.calls.append(("exists", ref))
+        return self._exists
+
+    async def manifest_bytes(self, ref, timeout):
+        return self._manifest
+
+    async def size(self, ref):
+        return self._size
+
+    async def containers_of(self, tag):
+        return ["submission-run-1"]
+
+    async def rm_force(self, name):
+        self.calls.append(("rm_force", name))
+
+    async def rmi(self, ref):
+        self.calls.append(("rmi", ref))
+        return True
+
+
+class FakeSim:
+    def __init__(self, busy=False, fail=None, stop_ok=True):
+        self._busy, self.fail, self.stop_ok, self.calls = busy, fail, stop_ok, []
+
+    async def _step(self, name):
+        self.calls.append(name)
+        if self.fail and self.fail[0] == name:
+            raise JobFailed(*self.fail[1:])
+
+    async def busy(self):
+        self.calls.append("busy")
+        return self._busy
+
+    async def start_web(self):
+        await self._step("start_web")
+
+    async def start_sim(self):
+        await self._step("start_sim")
+
+    async def wait_px4_ready(self, since):
+        await self._step("wait_px4_ready")
+
+    async def stop(self):
+        self.calls.append("stop")
+        return self.stop_ok
+
+
+class FakeSitl:
+    def __init__(self, tag="submission-x-20261005-120000", fail=None, clip=None):
+        self.tag, self.fail, self.clip = tag, fail, clip
+
+    async def pull(self, ref, timeout):
+        if self.fail:
+            raise JobFailed("pull_failed", self.fail)
+        return self.tag
+
+    async def detrec_status(self):
+        if not self.clip:
+            return {"on": False, "last": None}
+        os.utime(self.clip / "meta.json")       # the recorder just closed this run's clip
+        return {"on": False, "last": str(self.clip / "detections.mp4")}
+
+
+def make_fly(kind="done", detail="", hold=None, frames=None):
+    """flightsession.fly stand-in: journals `frames`, then waits on `hold`."""
+    frames = [frame("running", ["[ 0s] up"])] if frames is None else frames
+
+    async def fly(ws_url, tag, runlog, flight_s, arming_s, on_telemetry=None):
+        for f in frames:
+            runlog.frame(f)
+            on_telemetry(f)
+        if hold is not None:
+            await hold.wait()
+        return Outcome(kind, detail, kind == "done", time.time())
+
+    return fly
