@@ -3,6 +3,9 @@ everything but /healthz."""
 import asyncio
 import hmac
 import os
+import re
+import secrets
+import shutil
 import time
 from contextlib import asynccontextmanager
 
@@ -10,7 +13,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from . import policy
+from . import policy, uploads
+from .config import GB
 from .jobs import FILES, TERMINAL
 
 MAX_BODY = 4096
@@ -106,8 +110,49 @@ def create_app(settings, store, worker):
             return refused
         return accepted(store.new(req.image, flight_s))
 
-    async def create_from_upload(request):        # part B1
-        raise HTTPException(415, "send JSON {\"image\": ...}")
+    async def create_from_upload(request):
+        """A file (`curl -T`) with ?kind=image|bundle&name= (design 12). The
+        file streams to disk; while it does, it holds the pending slot, so
+        two big uploads never arrive side by side."""
+        q = request.query_params
+        kind, name = q.get("kind", ""), q.get("name", "")
+        if kind not in ("image", "bundle"):
+            raise HTTPException(415 if not kind else 400,
+                                "send JSON {\"image\": ...}, or a file with ?kind=image|bundle&name=")
+        if not re.fullmatch(uploads.NAME_RE, name):
+            raise HTTPException(400, f"name must match {uploads.NAME_RE}")
+        try:
+            flight_s = flight_seconds(int(q["flight_timeout_s"]) if "flight_timeout_s" in q else None)
+        except ValueError:
+            raise HTTPException(400, "flight_timeout_s must be an integer")
+        length = request.headers.get("content-length", "")
+        if not length.isdigit():
+            raise HTTPException(411, "Content-Length required (curl -T sends it)")
+        size = int(length)
+        limit = int(settings.max_upload_gb * GB) if kind == "image" else uploads.BUNDLE_MAX
+        if size > limit:
+            raise HTTPException(413, f"file over {limit} bytes")
+        if shutil.disk_usage(settings.runs_dir).free < settings.min_free_gb * GB + 2 * size:
+            raise HTTPException(507, "not enough free disk for this upload")
+        refused = refuse_if_full()          # before taking a single byte of the file
+        if refused:
+            return refused
+        staging = settings.uploads_dir / f"{secrets.token_hex(8)}.tar"
+        receiving[0] += 1                   # holds the slot while the file streams in
+        try:
+            await uploads.receive(request.stream(), staging, size, limit)
+        except uploads.UploadError as e:
+            raise HTTPException(e.status, e.detail)
+        finally:
+            receiving[0] -= 1
+        refused = refuse_if_full()          # degraded meanwhile? then drop the file
+        if refused:
+            staging.unlink(missing_ok=True)
+            return refused
+        job = store.new(f"upload:{kind}:{name}", flight_s, source="upload",
+                        upload_kind=kind, upload_name=name)
+        os.replace(staging, store.dir(job) / "upload.tar")
+        return accepted(job)
 
     @app.get("/healthz")
     def healthz():

@@ -148,3 +148,34 @@ def test_framework_doc_routes_are_not_served(tmp_path, serve):
     url, _, _ = make(tmp_path, serve)
     for path in ("/docs", "/redoc", "/openapi.json"):
         assert http("GET", url + path, raw=True)[0] == 404, path
+
+
+def upload(url, data, query="kind=image&name=truck", ctype="application/octet-stream"):
+    return http("POST", f"{url}/jobs?{query}", TOKEN, data, ctype=ctype)
+
+
+def test_upload_creates_a_job_with_the_file(tmp_path, serve):
+    url, store, worker = make(tmp_path, serve, min_free_gb=0)
+    code, body = upload(url, b"x" * 1000)
+    assert code == 202 and body["source"] == "upload"
+    job = store.get(body["job_id"])
+    assert (job.upload_kind, job.upload_name, job.image) == ("image", "truck", "upload:image:truck")
+    assert (store.dir(job) / "upload.tar").read_bytes() == b"x" * 1000
+    assert worker.submitted == [job.id]
+    assert list((tmp_path / "uploads").iterdir()) == []
+
+
+def test_upload_rejections(tmp_path, serve):
+    url, _, _ = make(tmp_path, serve, min_free_gb=0, max_upload_gb=1e-6)   # ~1 KB
+    assert upload(url, b"x", "kind=zip&name=truck")[0] == 400
+    assert upload(url, b"x", "kind=image&name=../evil")[0] == 400
+    assert upload(url, b"x" * 2000)[0] == 413
+    assert upload(url, b"x" * 10, "kind=bundle&name=t&flight_timeout_s=5")[0] == 400
+    assert upload(url, b"x" * 10)[0] == 202
+    assert upload(url, b"x" * 10, "kind=bundle&name=t2")[0] == 409      # slot taken: file refused
+    assert list((tmp_path / "uploads").glob("*")) == []
+
+
+def test_upload_needs_disk(tmp_path, serve):
+    url, _, _ = make(tmp_path, serve, min_free_gb=10 ** 6)
+    assert upload(url, b"x" * 10)[0] == 507
