@@ -76,7 +76,7 @@ curl -s -o clip.mp4 $R/jobs/<id>/files/detections.mp4 -H "$H"
 
 - `queued` = อยู่ในช่องรอ (ได้ 1 งาน) · kill งานใน `queued` ได้ (จบทันที ไม่มีข้อมูล)
 - **state จบ (`done` / `failed` / `killed`) = finalize + cleanup เสร็จแล้ว** พี่ต้นจึงส่งงานถัดไปได้ทันทีที่เห็น state จบ
-- `failed` มี `failed_in` + `reason` + `detail` · reason: `pull_failed` `disk_low` `image_too_large` `sim_busy` `load_failed` `archive_rejected` `sim_boot_timeout` `px4_not_ready` `run_refused` `arming_timeout` `agent_crashed` `flight_timeout` `ws_lost` `runner_restarted` `internal_error`
+- `failed` มี `failed_in` + `reason` + `detail` · reason: `pull_failed` `disk_low` `image_too_large` `sim_busy` `load_failed` `archive_rejected` `sim_boot_timeout` `px4_not_ready` `run_refused` `arming_timeout` `agent_crashed` `flight_timeout` `ws_lost` `web_start_failed` `runner_restarted` `runner_degraded` `unsupported_source` `internal_error`
 
 ## 3. Sequence diagram ของแต่ละสถานการณ์
 
