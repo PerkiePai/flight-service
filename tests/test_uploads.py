@@ -26,3 +26,14 @@ def test_receive_rejects_and_leaves_nothing(tmp_path, parts, expected, limit, st
     with pytest.raises(UploadError) as e:
         asyncio.run(receive(chunks(*parts), dest, expected, limit))
     assert e.value.status == status and list(tmp_path.iterdir()) == []
+
+
+def test_a_stalled_upload_times_out(tmp_path):
+    async def stalls():
+        yield b"abc"
+        await asyncio.sleep(5)
+        yield b"de"
+
+    with pytest.raises(UploadError) as e:
+        asyncio.run(receive(stalls(), tmp_path / "a.tar", 5, 100, idle_timeout_s=0.05))
+    assert e.value.status == 408 and list(tmp_path.iterdir()) == []

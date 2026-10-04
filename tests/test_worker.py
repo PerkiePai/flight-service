@@ -37,7 +37,9 @@ def run_bg(w, store, until, then=None):
     async def scenario():
         loop = asyncio.create_task(w.run_forever())
         job = store.all()[-1]
+        deadline = asyncio.get_running_loop().time() + 15
         while not until(job):
+            assert asyncio.get_running_loop().time() < deadline, f"condition never met; job {job.state}"
             await asyncio.sleep(0.01)
         if then:
             await then(job)
@@ -282,13 +284,24 @@ import tarfile
 
 
 def upload_job(store, kind="image", tags=("truck:1",)):
+    """An upload as POST /jobs leaves it: data/uploads/<job_id>.tar, outside runs/."""
     job = store.new(f"upload:{kind}:truck", 600, source="upload", upload_kind=kind, upload_name="truck")
-    with tarfile.open(store.dir(job) / "upload.tar", "w") as tar:
-        data = json.dumps([{"Config": "c", "RepoTags": list(tags), "Layers": []}]).encode()
-        info = tarfile.TarInfo("manifest.json")
-        info.size = len(data)
-        tar.addfile(info, io.BytesIO(data))
+    up = store.root.parent / "uploads"
+    up.mkdir(exist_ok=True)
+    with tarfile.open(up / f"{job.id}.tar", "w") as tar:
+        if kind == "image":
+            members = [("manifest.json", json.dumps([{"Config": "c", "RepoTags": list(tags), "Layers": []}]).encode())]
+        else:
+            members = [("Dockerfile", b"FROM competition-base:latest\n"), ("agent.py", b"x")]
+        for name, data in members:
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
     return job
+
+
+def upload_file(store, job):
+    return store.root.parent / "uploads" / f"{job.id}.tar"
 
 
 def test_image_archive_upload_flies_and_cleans_up(tmp_path):
@@ -299,10 +312,10 @@ def test_image_archive_upload_flies_and_cleans_up(tmp_path):
     assert job.state == DONE, (job.reason, job.detail)
     assert job.image_tag.startswith("submission-truck-")
     assert ("tag", "truck:1", job.image_tag) in docker.calls
-    assert ("rmi", "truck:1") in docker.calls                  # the archive's own tag
+    assert ("rmi", "docker.io/library/truck:1") in docker.calls    # the archive's own tag
     assert ("rmi", job.image_tag) in docker.calls              # cleanup
     assert ("rmi", job.image) not in docker.calls
-    assert not (store.dir(job) / "upload.tar").exists()
+    assert not upload_file(store, job).exists() and not (store.dir(job) / "upload.tar").exists()
     assert sim.calls == ["busy", "start_sim", "wait_px4_ready", "stop"]
     ev = list(read_jsonl(store.dir(job) / "events.jsonl"))
     assert [e["state"] for e in ev if e["kind"] == "state"][0] == "loading"
@@ -315,8 +328,8 @@ def test_archive_tag_that_exists_is_rejected(tmp_path):
     asyncio.run(w.run_job(job))
     assert (job.state, job.reason, job.failed_in) == (FAILED, "archive_rejected", "loading")
     assert not any(c[0] == "load" for c in docker.calls)
-    assert ("rmi", "competition-base:latest") not in docker.calls
-    assert not (store.dir(job) / "upload.tar").exists()
+    assert not any(c[0] == "rmi" and "competition-base" in c[1] for c in docker.calls)
+    assert not upload_file(store, job).exists()
 
 
 def test_bundle_upload_builds_through_drone_sitl(tmp_path):
@@ -327,4 +340,81 @@ def test_bundle_upload_builds_through_drone_sitl(tmp_path):
     assert job.state == DONE, (job.reason, job.detail)
     assert job.image_tag == "submission-truck-20261005-120000"
     assert sim.calls == ONE                                  # web first, for the build
-    assert ("rmi", job.image_tag) in docker.calls and not (store.dir(job) / "upload.tar").exists()
+    assert ("rmi", job.image_tag) in docker.calls and not upload_file(store, job).exists()
+
+
+def test_load_creating_an_undeclared_name_fails_and_degrades(tmp_path):
+    """Caught in review: if docker load names the image differently from what
+    was checked, a protected tag may have been overwritten -> stop taking jobs."""
+    docker = FakeDocker()
+    docker.loaded = ("competition-base:latest",)
+    _, store, w = setup(tmp_path, docker=docker)
+    job = upload_job(store)
+    asyncio.run(w.run_job(job))
+    assert (job.state, job.reason) == (FAILED, "archive_rejected")
+    assert "competition-base" in job.detail and w.phase == "degraded"
+
+
+def test_kill_during_docker_load_removes_the_archive_names(tmp_path):
+    docker, sim = FakeDocker(), FakeSim()
+    docker.load_hold = asyncio.Event()
+    _, store, w = setup(tmp_path, docker=docker, sim=sim)
+    job = upload_job(store)
+    w.submit(job)
+
+    async def kill(j):
+        assert w.kill(j)
+        while w.phase != "idle":
+            await asyncio.sleep(0.01)
+
+    run_bg(w, store, until=lambda j: ("load", str(upload_file(store, j))) in docker.calls, then=kill)
+    assert job.state == KILLED and job.failed_in == "loading"
+    assert ("rmi", "docker.io/library/truck:1") in docker.calls
+    assert not upload_file(store, job).exists()
+
+
+def test_tag_failure_still_removes_what_the_load_brought(tmp_path):
+    docker = FakeDocker()
+    docker.tag_fails = True
+    _, store, w = setup(tmp_path, docker=docker)
+    job = upload_job(store)
+    asyncio.run(w.run_job(job))
+    assert (job.state, job.reason) == (FAILED, "load_failed")
+    assert ("rmi", "docker.io/library/truck:1") in docker.calls
+    assert job.image_tag and ("rmi", job.image_tag) in docker.calls
+
+
+def test_recover_cleans_an_upload_job_and_stale_upload_files(tmp_path):
+    s, store, _ = setup(tmp_path)
+    job = upload_job(store)
+    job.extra_tags = ["docker.io/library/truck:1"]
+    store.set_state(job, "loading")
+    stray = s.uploads_dir / "0123abcd.tar.part"
+    stray.write_bytes(b"half an upload")
+    docker, sim, fresh = FakeDocker(), FakeSim(), JobStore(s.runs_dir)
+    w = Worker(s, fresh, docker, sim, FakeSitl(), fly=make_fly(), truth=lambda: TRUTH)
+    asyncio.run(w.recover())
+    assert (fresh.get(job.id).state, fresh.get(job.id).reason) == (FAILED, "runner_restarted")
+    assert ("rmi", "docker.io/library/truck:1") in docker.calls
+    assert list(s.uploads_dir.iterdir()) == [] and sim.calls == []
+
+
+def test_health_counts_an_upload_still_streaming_in(tmp_path):
+    _, _, w = setup(tmp_path)
+    w.receiving = 1
+    assert w.health() == {"ok": True, "ready": False, "phase": "idle", "pending": 1}
+
+
+def test_unsafe_bundle_is_rejected_before_drone_sitl_sees_it(tmp_path):
+    sim = FakeSim()
+    _, store, w = setup(tmp_path, sim=sim)
+    job = store.new("upload:bundle:truck", 600, source="upload", upload_kind="bundle", upload_name="truck")
+    (store.root.parent / "uploads").mkdir(exist_ok=True)
+    with tarfile.open(upload_file(store, job), "w") as tar:
+        for name, kind, target in (("Dockerfile", tarfile.REGTYPE, ""), ("a", tarfile.SYMTYPE, "/home")):
+            info = tarfile.TarInfo(name)
+            info.type, info.linkname = kind, target
+            tar.addfile(info, io.BytesIO(b"") if kind == tarfile.REGTYPE else None)
+    asyncio.run(w.run_job(job))
+    assert (job.state, job.reason) == (FAILED, "archive_rejected")
+    assert "start_web" not in sim.calls

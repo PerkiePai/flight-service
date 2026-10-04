@@ -325,13 +325,13 @@ endpoint เดียวกับการส่งชื่อ image (`POST /jo
 
 ### Flow
 
-1. **รับไฟล์ระหว่าง request:** ต้องมี `Content-Length` · ตรวจว่า ≤ `MAX_UPLOAD_GB` (default 16) และดิสก์ว่าง ≥ `MIN_FREE_GB` + 2× ขนาดไฟล์ **ก่อน**รับ · เขียนลง `jobs/<id>/upload.tar` แบบ stream และนับ byte ถ้าเกินหรือขาด → ลบไฟล์ + `413`/`400`
+1. **รับไฟล์ระหว่าง request:** ต้องมี `Content-Length` · ตรวจว่า ≤ `MAX_UPLOAD_GB` (default 16) และดิสก์ว่าง ≥ `MIN_FREE_GB` + 2× ขนาดไฟล์ **ก่อน**รับ · เขียนแบบ stream ลง `data/uploads/` (นอก `data/runs/` เพื่อไม่ให้ retention นับ) นับ byte ถ้าเกินหรือขาด → ลบไฟล์ + `413`/`400` · ไม่มีข้อมูลเข้ามา 60 s → `408` · ไฟล์ที่กำลังเข้าจองช่องรอ และ `/healthz` นับรวมใน `pending`
 2. ตรวจช่องรอ**ก่อน**รับไฟล์ (เต็ม → `409` โดยไม่รับไฟล์) · ไฟล์ที่กำลังส่งเข้ามาจองช่องรอไว้ · ได้ไฟล์ครบแล้วจึงสร้าง job (`source=upload`)
 3. **loading** (แทน pulling):
-   - `kind=image`: อ่าน `manifest.json` ในไฟล์**ก่อน load** ต้องมี image เดียว และทุก RepoTag ต้อง**ยังไม่มีบนเครื่อง** ถ้าไม่ผ่าน → `archive_rejected`
+   - `kind=image`: อ่าน metadata ในไฟล์**ก่อน load** ทั้ง `manifest.json` (RepoTags) **และ `index.json`** (annotation `io.containerd.image.name` ซึ่ง Docker 29 + containerd image store ใช้ตั้งชื่อตอน load จริง) ต้องเป็น image เดียว และทุกชื่อต้อง**ยังไม่มีบนเครื่อง** ถ้าไม่ผ่าน → `archive_rejected` · หลัง load ตรวจซ้ำว่าชื่อที่ได้ตรงกับที่ตรวจไว้ ไม่ตรง → `archive_rejected` + runner `degraded` (อาจมี tag ถูกทับ ต้องให้คนตรวจ) · อ่านทีละ member จำกัด 100k member และ metadata ≤ 1 MB
      (ไม่บังคับ allowlist ของ registry กับไฟล์อัปโหลด เพราะผู้ส่งยืนยันตัวด้วย token แล้ว และสิ่งที่อันตรายจริงคือการทับ tag ที่มีอยู่)
      (กันไฟล์ที่ติด tag `competition-base:latest` หรือ `postgres:15.4` มาแล้วทับ image ของเรา) → `docker load -i` → retag เป็น `submission-<name>-<ts>` → ลบ tag เดิมที่มากับไฟล์
-   - `kind=bundle`: เปิดเว็บแบบ `SKIP_SIM=1` → `POST :8090/agent/upload-docker?name=<name>.tar` (ส่งไฟล์ต่อแบบ stream) → ได้ `image_tag`
+   - `kind=bundle`: ตรวจก่อนส่งต่อ ต้องมีแต่ไฟล์ธรรมดา/โฟลเดอร์ ไม่มี symlink/hardlink ไม่มี `..` และมี `Dockerfile` (เพราะตัวแตกไฟล์ของ drone-sitl ตามลิงก์ออกนอกโฟลเดอร์ได้) → เปิดเว็บแบบ `SKIP_SIM=1` → `POST :8090/agent/upload-docker?name=<name>.tar` (ส่งไฟล์ต่อแบบ stream) → ได้ `image_tag`
    - ตรวจขนาด image หลัง load/build ≤ `MAX_IMAGE_GB` · **ลบ `upload.tar` ทันทีหลัง load** (ไม่ต้องรอจบงาน)
 4. จากนั้น booting → flying → collecting → cleanup เหมือนเดิม (cleanup `rmi` tag ของงานนี้ทุกครั้ง เพราะ image จากไฟล์ไม่เคยมีบนเครื่องมาก่อน)
 
@@ -339,7 +339,7 @@ endpoint เดียวกับการส่งชื่อ image (`POST /jo
 
 - ไฟล์ที่อัปโหลด = โค้ดที่ไม่รู้ที่มา เหมือนการ pull จึงใช้ token, timeout และ limit ของ container ชุดเดียวกัน
 - `name` ต้องตรง `^[a-z0-9][a-z0-9_-]{0,63}$` (ทั้งสองแบบ) · bundle ใหญ่ได้ไม่เกิน 200 MB (ลิมิตของ drone-sitl `AGENT_DOCKER_MAX_BYTES`)
-- ไม่มีการแตกไฟล์ลงดิสก์เอง อ่านแค่ metadata ใน tar ส่วนแบบ bundle ใช้ `_safe_extract` ของ drone-sitl ที่กัน path traversal อยู่แล้ว
+- ไม่มีการแตกไฟล์ลงดิสก์เอง อ่านแค่ metadata ใน tar · **`_safe_extract` ของ drone-sitl กันชื่อไฟล์ `../` ได้แต่ไม่กัน symlink** (review 2026-10-05) flight-service จึงตรวจ bundle เองก่อนส่ง · ทางแก้ต้นทาง: `tar.extractall(dest, filter="data")` ใน drone-sitl (ต้องขออนุมัติ)
 - ⚠️ อ่าน manifest ในไฟล์ `.gz` ต้องคลายไฟล์ทั้งไฟล์ (หลายนาทีสำหรับ 12 GB) ถ้าเป็น `.tar` ธรรมดาจะเร็วกว่ามาก
 
 ### ทำเมื่อไร

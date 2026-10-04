@@ -46,6 +46,7 @@ class Job:
     reason: str | None = None
     detail: str | None = None
     image_tag: str | None = None          # submission-<stem>-<ts> on this box
+    extra_tags: list = field(default_factory=list)   # names an uploaded archive brought in (proven new)
     image_preexisting: bool = True        # safe default: never rmi a ref we did not bring
     owns_sim: bool = False                # this job started drone-sitl's web/sim
     run_at: float | None = None           # wall time RUN was sent

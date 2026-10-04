@@ -72,15 +72,13 @@ def create_app(settings, store, worker):
             raise HTTPException(400, f"flight_timeout_s must be 30..{settings.max_flight_s}")
         return flight_s
 
-    receiving = [0]          # uploads still streaming in; each will need a pending slot (B1)
-
     def refuse_if_full():
         """None if a new job fits, else the response to send (design 5).
         Called again right before store.new with no await in between, so
         two requests can never both take the last slot."""
         if worker.phase == "degraded":
             return JSONResponse({"detail": "degraded"}, status_code=503)
-        if not worker.accepting() or len(worker.queued()) + receiving[0] >= settings.max_pending:
+        if not worker.accepting():                 # counts uploads still streaming in
             return JSONResponse({"detail": "busy",
                                  "current_job": worker.current.id if worker.current else None,
                                  "pending": [j.id for j in worker.queued()]}, status_code=409)
@@ -138,20 +136,22 @@ def create_app(settings, store, worker):
         if refused:
             return refused
         staging = settings.uploads_dir / f"{secrets.token_hex(8)}.tar"
-        receiving[0] += 1                   # holds the slot while the file streams in
+        worker.receiving += 1               # holds the slot while the file streams in
         try:
-            await uploads.receive(request.stream(), staging, size, limit)
+            await uploads.receive(request.stream(), staging, size, limit,
+                                  settings.upload_idle_timeout_s)
         except uploads.UploadError as e:
             raise HTTPException(e.status, e.detail)
         finally:
-            receiving[0] -= 1
+            worker.receiving -= 1
         refused = refuse_if_full()          # degraded meanwhile? then drop the file
         if refused:
             staging.unlink(missing_ok=True)
             return refused
         job = store.new(f"upload:{kind}:{name}", flight_s, source="upload",
                         upload_kind=kind, upload_name=name)
-        os.replace(staging, store.dir(job) / "upload.tar")
+        # data/uploads/<job_id>.tar: outside runs/, so retention never counts it (review C1)
+        os.replace(staging, settings.uploads_dir / f"{job.id}.tar")
         return accepted(job)
 
     @app.get("/healthz")

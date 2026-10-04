@@ -21,14 +21,15 @@ def prune(runs_dir, max_bytes, keep=()):
     runs_dir = Path(runs_dir)
     if max_bytes <= 0 or not runs_dir.is_dir():
         return []
-    runs = [d for d in runs_dir.iterdir() if d.is_dir()]
+    # Only runs that may be deleted count toward the cap: a big run that must
+    # stay (the one flying, a queued one) must not push the finished ones out.
+    runs = [d for d in runs_dir.iterdir()
+            if d.is_dir() and d.name not in keep and not (d / RUNNING_MARK).exists()]
     sizes = {d: _size(d) for d in runs}
     total, deleted = sum(sizes.values()), []
     for d in sorted(runs, key=_age_key):
         if total <= max_bytes:
             break
-        if d.name in keep or (d / RUNNING_MARK).exists():
-            continue
         shutil.rmtree(d, ignore_errors=True)
         total -= sizes[d]
         deleted.append(d.name)

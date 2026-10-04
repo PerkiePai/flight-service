@@ -14,7 +14,7 @@ class StubWorker:
 
     def __init__(self, store):
         self.store, self.submitted, self.recovered = store, [], False
-        self.current, self.phase, self.max_pending = None, "idle", 1
+        self.current, self.phase, self.max_pending, self.receiving = None, "idle", 1, 0
 
     async def recover(self):
         self.recovered = True
@@ -35,7 +35,7 @@ class StubWorker:
         return False
 
     def accepting(self):
-        return self.phase != "degraded" and len(self.queued()) < self.max_pending
+        return self.phase != "degraded" and len(self.queued()) + self.receiving < self.max_pending
 
     def health(self):
         return {"ok": self.phase != "degraded", "ready": self.accepting(),
@@ -160,9 +160,10 @@ def test_upload_creates_a_job_with_the_file(tmp_path, serve):
     assert code == 202 and body["source"] == "upload"
     job = store.get(body["job_id"])
     assert (job.upload_kind, job.upload_name, job.image) == ("image", "truck", "upload:image:truck")
-    assert (store.dir(job) / "upload.tar").read_bytes() == b"x" * 1000
+    assert (tmp_path / "uploads" / f"{job.id}.tar").read_bytes() == b"x" * 1000
+    assert not (store.dir(job) / "upload.tar").exists()          # never inside runs/ (retention)
     assert worker.submitted == [job.id]
-    assert list((tmp_path / "uploads").iterdir()) == []
+    assert [p.name for p in (tmp_path / "uploads").iterdir()] == [f"{job.id}.tar"]
 
 
 def test_upload_rejections(tmp_path, serve):
@@ -173,7 +174,7 @@ def test_upload_rejections(tmp_path, serve):
     assert upload(url, b"x" * 10, "kind=bundle&name=t&flight_timeout_s=5")[0] == 400
     assert upload(url, b"x" * 10)[0] == 202
     assert upload(url, b"x" * 10, "kind=bundle&name=t2")[0] == 409      # slot taken: file refused
-    assert list((tmp_path / "uploads").glob("*")) == []
+    assert len(list((tmp_path / "uploads").glob("*"))) == 1             # only the accepted one
 
 
 def test_upload_needs_disk(tmp_path, serve):

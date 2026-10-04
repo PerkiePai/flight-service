@@ -34,6 +34,8 @@ class Worker:
         self.current = None
         self._task = None
         self._kill_sent = False
+        self._suspect = False        # docker load named something we never checked
+        self.receiving = 0           # uploads still streaming in (each holds a slot)
         self.phase = "idle"          # idle | running | finishing | cleanup | degraded
 
     # -- queue -----------------------------------------------------------
@@ -48,7 +50,10 @@ class Worker:
         """Room for one more job: not degraded, and fewer than max_pending
         waiting behind the running one (design 5: the real queue is the
         caller's; this small one only absorbs a dispatch race)."""
-        return self.phase != "degraded" and len(self.queued()) < self.s.max_pending
+        return self.phase != "degraded" and self._pending() < self.s.max_pending
+
+    def _pending(self):
+        return len(self.queued()) + self.receiving
 
     def kill(self, job):
         """True if taken. Queued: ends at once. Running: interrupted, then
@@ -65,7 +70,7 @@ class Worker:
 
     def health(self):
         return {"ok": self.phase != "degraded", "ready": self.accepting(),
-                "phase": self.phase, "pending": len(self.queued())}
+                "phase": self.phase, "pending": self._pending()}
 
     async def run_forever(self):
         while True:
@@ -89,9 +94,14 @@ class Worker:
                 job.result = await asyncio.to_thread(
                     self._finalize, job, "runner_restarted", None,
                     f"runner restarted while {was}", None)
-                if job.owns_sim and not await self._cleanup(job):
+                if not await self._cleanup(job):     # also an upload job that never owned the sim
                     self.phase = "degraded"
             self.store.fail(job, "runner_restarted", f"runner restarted while {was}")
+        # Nothing is queued or mid-upload any more: staged and stale upload files go.
+        if self.s.uploads_dir.is_dir():
+            for f in self.s.uploads_dir.iterdir():
+                if f.is_file():
+                    f.unlink(missing_ok=True)
         self._prune()
 
     # -- one job -----------------------------------------------------------
@@ -143,7 +153,7 @@ class Worker:
             if not shutting_down:           # a `return` here would swallow the CancelledError
                 self.phase = "cleanup"
                 ok = await self._cleanup(job)
-                self.phase = "idle" if ok else "degraded"
+                self.phase = "idle" if ok and not self._suspect else "degraded"
                 self.current, self._task = None, None
                 state, _, reason, detail = end
                 self.store.end(job, state, reason, detail)  # only now: cleanup is done (design 4)
@@ -168,9 +178,12 @@ class Worker:
         else:
             raise JobFailed("unsupported_source", job.source)
 
+    def _upload_path(self, job):
+        return self.s.uploads_dir / f"{job.id}.tar"
+
     async def _load(self, job, runlog):
         await self._precheck(job, runlog, LOADING)
-        upload = self.store.dir(job) / "upload.tar"
+        upload = self._upload_path(job)
         try:
             if job.upload_kind == "image":
                 await self._load_image(job, upload)
@@ -184,23 +197,30 @@ class Worker:
         await self._check_size(job)
 
     async def _load_image(self, job, upload):
-        tags = await asyncio.to_thread(archive.repo_tags, upload)
-        for t in tags:
-            if await self.docker.exists(t):
+        names = await asyncio.to_thread(archive.image_names, upload)
+        for name in names:
+            if await self.docker.exists(name):
                 raise JobFailed("archive_rejected",
-                                f"archive tag {t} already exists on this box and would be overwritten")
+                                f"archive names {name}, which already exists on this box")
+        job.extra_tags = names                      # proven new: cleanup may always remove them
+        self.store.save(job)
         loaded = await self.docker.load(upload, self.s.pull_timeout_s)
+        unexpected = {archive.normalize(x) for x in loaded if not x.startswith("sha256:")} - set(names)
+        if unexpected:
+            self._suspect = True                    # a protected tag may now point at this image
+            raise JobFailed("archive_rejected",
+                            f"docker load created names the archive check never saw: "
+                            f"{sorted(unexpected)}; runner set to degraded, check them by hand")
         if not loaded:
             raise JobFailed("load_failed", "docker load reported nothing loaded")
-        tag = f"submission-{job.upload_name}-{time.strftime('%Y%m%d-%H%M%S')}"
-        try:
-            await self.docker.tag(loaded[0], tag)
-            job.image_tag = tag
-        finally:
-            for t in tags:                          # untag what the archive brought in;
-                await self.docker.rmi(t)            # the image stays under our own tag
+        job.image_tag = f"submission-{job.upload_name}-{time.strftime('%Y%m%d-%H%M%S')}"
+        self.store.save(job)                        # recorded before it exists: rmi of a missing tag is harmless
+        await self.docker.tag(loaded[0], job.image_tag)
+        for name in names:                          # the image stays under our own tag
+            await self.docker.rmi(name)
 
     async def _load_bundle(self, job, upload):
+        await asyncio.to_thread(archive.check_bundle, upload)   # drone-sitl's extractor follows links
         job.owns_sim = True
         self.store.save(job)
         await self.sim.start_web()
@@ -278,6 +298,8 @@ class Worker:
                     await self.docker.rm_force(name)
             if job.owns_sim:
                 ok = await self.sim.stop()
+            for name in job.extra_tags:            # an archive's own names, proven new at load
+                await self.docker.rmi(name)
             if not self.s.keep_image:
                 if job.image_tag:
                     await self.docker.rmi(job.image_tag)

@@ -26,6 +26,7 @@ class Settings:
     docker_root: Path = Path("/var/lib/docker")
     max_pending: int = 1          # jobs waiting behind the running one (design 5)
     max_upload_gb: float = 16.0
+    upload_idle_timeout_s: float = 60.0
     data_retention_gb: float = 10.0
     pull_timeout_s: float = 1800.0
     manifest_timeout_s: float = 30.0
@@ -70,6 +71,7 @@ class Settings:
             docker_root=Path(env.get("DOCKER_ROOT", "/var/lib/docker")),
             max_pending=num("MAX_PENDING", 1, int),
             max_upload_gb=num("MAX_UPLOAD_GB", 16.0),
+            upload_idle_timeout_s=num("UPLOAD_IDLE_TIMEOUT_S", 60.0),
             data_retention_gb=num("DATA_RETENTION_GB", 10.0),
             pull_timeout_s=num("PULL_TIMEOUT_S", 1800.0),
             manifest_timeout_s=num("MANIFEST_TIMEOUT_S", 30.0),

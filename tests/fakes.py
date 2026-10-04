@@ -72,12 +72,20 @@ class FakeDocker:
         self.calls.append(("rmi", ref))
         return True
 
+    loaded = ("truck:1",)
+    load_hold = None            # an asyncio.Event to wait on inside docker load
+    tag_fails = False
+
     async def load(self, path, timeout):
         self.calls.append(("load", str(path)))
-        return ["truck:1"]
+        if self.load_hold is not None:
+            await self.load_hold.wait()
+        return list(self.loaded)
 
     async def tag(self, src, dst):
         self.calls.append(("tag", src, dst))
+        if self.tag_fails:
+            raise JobFailed("load_failed", "no such image")
 
 
 class FakeSim:
