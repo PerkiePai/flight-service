@@ -1,6 +1,7 @@
 """drone-sitl's :8090 HTTP endpoints the runner uses."""
 import asyncio
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,14 +26,24 @@ def _call(method, url, timeout):
     return _open(urllib.request.Request(url, method=method), timeout)
 
 
+def _send_file(url, path, timeout):
+    """POST a file without reading it into memory (urllib streams a file
+    object when Content-Length is given)."""
+    with open(path, "rb") as f:
+        req = urllib.request.Request(url, data=f, method="POST", headers={
+            "Content-Length": str(os.path.getsize(path)),
+            "Content-Type": "application/octet-stream"})
+        return _open(req, timeout)
+
+
 def _fail(reason, code, body):
     lines = [body.get("detail", f"HTTP {code}")] + list(body.get("log") or [])[-5:]
     raise JobFailed(reason, " | ".join(str(l) for l in lines))
 
 
 class Sitl:
-    def __init__(self, web_url, call=_call):
-        self.web, self.call = web_url.rstrip("/"), call
+    def __init__(self, web_url, call=_call, send_file=_send_file):
+        self.web, self.call, self.send_file = web_url.rstrip("/"), call, send_file
 
     async def pull(self, ref, timeout):
         """docker pull + retag submission-<stem>-<ts> (drone-sitl's
@@ -42,6 +53,15 @@ class Sitl:
         if code == 200 and body.get("image_tag"):
             return body["image_tag"]
         _fail("pull_failed", code, body)
+
+    async def upload_bundle(self, path, name, timeout):
+        """drone-sitl's /agent/upload-docker: build a bundle (Dockerfile FROM
+        competition-base) and tag it submission-<name>-<ts>."""
+        url = f"{self.web}/agent/upload-docker?name={urllib.parse.quote(name + '.tar')}"
+        code, body = await asyncio.to_thread(self.send_file, url, path, timeout)
+        if code == 200 and body.get("image_tag"):
+            return body["image_tag"]
+        _fail("load_failed", code, body)
 
     async def detrec_status(self):
         code, body = await asyncio.to_thread(self.call, "GET", f"{self.web}/detrec/status", 10)

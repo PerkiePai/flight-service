@@ -317,3 +317,14 @@ def test_archive_tag_that_exists_is_rejected(tmp_path):
     assert not any(c[0] == "load" for c in docker.calls)
     assert ("rmi", "competition-base:latest") not in docker.calls
     assert not (store.dir(job) / "upload.tar").exists()
+
+
+def test_bundle_upload_builds_through_drone_sitl(tmp_path):
+    docker, sim = FakeDocker(), FakeSim()
+    _, store, w = setup(tmp_path, docker=docker, sim=sim)
+    job = upload_job(store, kind="bundle")
+    asyncio.run(w.run_job(job))
+    assert job.state == DONE, (job.reason, job.detail)
+    assert job.image_tag == "submission-truck-20261005-120000"
+    assert sim.calls == ONE                                  # web first, for the build
+    assert ("rmi", job.image_tag) in docker.calls and not (store.dir(job) / "upload.tar").exists()

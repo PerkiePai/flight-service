@@ -200,8 +200,11 @@ class Worker:
             for t in tags:                          # untag what the archive brought in;
                 await self.docker.rmi(t)            # the image stays under our own tag
 
-    async def _load_bundle(self, job, upload):     # replaced in B3
-        raise JobFailed("unsupported_source", "bundle uploads come in B3")
+    async def _load_bundle(self, job, upload):
+        job.owns_sim = True
+        self.store.save(job)
+        await self.sim.start_web()
+        job.image_tag = await self.sitl.upload_bundle(upload, job.upload_name, self.s.pull_timeout_s)
 
     async def _pull(self, job, runlog):
         await self._precheck(job, runlog, PULLING)

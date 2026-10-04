@@ -116,6 +116,10 @@ class FakeSitl:
             raise JobFailed("pull_failed", self.fail)
         return self.tag
 
+    async def upload_bundle(self, path, name, timeout):
+        assert os.path.exists(path)
+        return f"submission-{name}-20261005-120000"
+
     async def detrec_status(self):
         if not self.clip:
             return {"on": False, "last": None}
