@@ -33,6 +33,22 @@ class FakeWS:
         await asyncio.Event().wait()
 
 
+class FakeConnect:
+    """websockets connect() stand-in that hands out one item per call: a FakeWS
+    (one connection) or an exception (that connect attempt fails). The last
+    item is reused once the others are used up."""
+
+    def __init__(self, *items):
+        self.items, self.calls = list(items), 0
+
+    def __call__(self, url, **kw):
+        self.calls += 1
+        item = self.items.pop(0) if len(self.items) > 1 else self.items[0]
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
+
 def frame(state, log=(), lat=14.0, lon=100.0, alt=20.0, boxes=()):
     return {"connected": True, "lat": lat, "lon": lon, "alt_m": alt, "heading_deg": 90.0,
             "roll_deg": 0.0, "pitch_deg": 0.0, "gs": 3.0, "vz": 0.0, "mode": "OFFBOARD",
