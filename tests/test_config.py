@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import pytest
 
-from flight_service.config import DEFAULT_ALLOWED, Settings
+from flight_service.config import DEFAULT_ALLOWED, HERE, Settings
 
 TOKEN = "t" * 32
 
@@ -35,3 +37,21 @@ def test_from_env_overrides(tmp_path):
                            "ARMING_TIMEOUT_S": "5", "DATA_RETENTION_GB": "0"})
     assert s.drone_sitl_dir == tmp_path and s.allowed_images == ("^a$", "^b$")
     assert s.keep_image is True and s.arming_timeout_s == 5.0 and s.data_retention_gb == 0.0
+
+
+def test_drone_sitl_dir_defaults_to_the_vendored_copy():
+    s = Settings.from_env({"RUNNER_TOKEN": TOKEN})
+    assert s.drone_sitl_dir == HERE / "vendor" / "drone-sitl"
+    assert (s.drone_sitl_dir / "sim" / "run-website.sh").is_file()
+
+
+def test_relative_drone_sitl_dir_is_relative_to_the_project_not_the_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": "vendor/drone-sitl"})
+    assert s.drone_sitl_dir == HERE / "vendor" / "drone-sitl" and s.drone_sitl_dir.is_absolute()
+
+
+def test_drone_sitl_dir_expands_home(monkeypatch):
+    monkeypatch.setenv("HOME", "/h")
+    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": "~/pai/drone-sitl"})
+    assert s.drone_sitl_dir == Path("/h/pai/drone-sitl")

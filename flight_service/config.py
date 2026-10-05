@@ -14,6 +14,14 @@ DEFAULT_RUN_ARGS = ("--memory 24g --memory-swap 24g --pids-limit 1024 "
 HERE = Path(__file__).resolve().parent.parent
 
 
+def project_path(value):
+    """A relative path is relative to this project, not to wherever the
+    service was started: sim.py runs drone-sitl's scripts there and matches
+    its processes by it."""
+    p = Path(value).expanduser()
+    return p if p.is_absolute() else HERE / p
+
+
 @dataclass(frozen=True)
 class Settings:
     token: str
@@ -66,7 +74,7 @@ class Settings:
 
         return cls(
             token=token,
-            drone_sitl_dir=Path(env.get("DRONE_SITL_DIR", Path.home() / "pai" / "drone-sitl")),
+            drone_sitl_dir=project_path(env.get("DRONE_SITL_DIR", "vendor/drone-sitl")),
             runs_dir=Path(env.get("RUNS_DIR", HERE / "data" / "runs")),
             host=env.get("RUNNER_HOST", "127.0.0.1"),
             port=num("RUNNER_PORT", 8095, int),
