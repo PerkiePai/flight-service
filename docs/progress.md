@@ -57,3 +57,4 @@ flight-service/
 | 2026-10-05 | Docker Hub | `perkiepai/truck-detector` สร้างเป็น **private** ก่อน push (ตามที่สั่ง) |
 | 2026-10-05 | drone-sitl race | แก้ `run-website.sh` ที่ต้นทาง (`bda585c`) ตามที่อนุมัติ + หลักฐานทั้งสองโปรเจกต์ |
 | 2026-10-05 | ทางเข้างาน | รับงานได้แค่ทาง API ของ flight-service (curl / ระบบพี่ต้น) · หน้าเว็บ drone-sitl อัปโหลด/pull ไม่ได้ตอน flight-service เปิด (drone-sitl `205eaff`) · branch `feat/core` เก็บไว้ก่อน เจ้าของจัดการเอง |
+| 2026-10-05 | แก้ข้อเล็ก | kill ระหว่าง pull ไม่ทิ้ง image (`2f598f9`) · `/ws` ต่อใหม่ภายใน 10 s (`e57553b`) |

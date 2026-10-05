@@ -9,8 +9,8 @@
 
 ## ข้อเล็กที่ยังไม่แก้
 
-- cancelling/timing out a pull may leave the pulled image behind (no image_tag yet) — check in Task 13 by killing during a pull
-- no /ws reconnect; design 4 says ws_lost = could not reconnect within 10 s — one dropped socket ends the job (localhost, rare)
+- ~~cancelling/timing out a pull may leave the pulled image behind~~ **แก้แล้ว** (`2f598f9`, ทดสอบจริงด้วย pytorch 3 GB)
+- ~~no /ws reconnect~~ **แก้แล้ว** (`e57553b`) ต่อใหม่ภายใน 10 s ตาม design 4
 - run_job prologue (RUNNING touch, RunLog open) outside try — an OSError there leaves phase=running → every POST 409
 - kill landing between create_task and run_job start: job marked killed then still runs — re-check QUEUED at top of run_job
 - finalize/wait_clip raising leaves result=None and a RUNNING marker retention never deletes

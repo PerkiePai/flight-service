@@ -88,3 +88,12 @@
 
 **ข้อสังเกต:** drone-sitl เก็บสำเนา bundle ทุกไฟล์ไว้ใน `logs/docker-agents/` (ไฟล์ละ 128 MB) ตามพฤติกรรมเดิมของมัน · บันทึกเป็น minor (M4)
 
+---
+
+# แก้ข้อเล็ก 2 ข้อ · 2026-10-05
+
+| ข้อ | แก้ | ทดสอบ |
+|---|---|---|
+| **kill ระหว่าง pull ทิ้ง image ไว้** · ต้นเหตุ: `docker pull` รันใน process ของเว็บ drone-sitl การยกเลิก request ของเราไม่หยุดมัน และ `stop-website.sh` ก็ไม่ปิด process ลูกนี้ | cleanup ของงานที่ pull ยังไม่จบ ส่ง SIGTERM ให้ `docker pull <ref>` (หาด้วย argv ตรงตัว ตาม PID ไม่ใช้ pattern) แล้วลบ tag `submission-<ชื่อ>-<เวลา>` ที่เกิดหลังเริ่ม pull และ ref ที่ไม่ได้มีอยู่ก่อน (`2f598f9`) | **ของจริง:** pull `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` (~3 GB, เพิ่มใน allowlist ชั่วคราวผ่าน env) · 8 s หลังเริ่มมี `docker pull` pid 864163 · kill → `killed / pulling` · หลังจากนั้นไม่มี `docker pull` ค้าง ไม่มี image/tag pytorch · log: `stopped the docker pull left running (pids [864163])` (`j-20261005-100420-3d2c`) · เปิด service กลับเป็น allowlist ปกติแล้ว (pytorch → 403) |
+| **`/ws` หลุดแล้วงานจบทันที** | ต่อใหม่ภายใน `RECONNECT_S` = 10 s โดยไม่ส่ง RUN ซ้ำ สถานะการติดตาม (เวลาบิน, arming, DONE) คงอยู่ · นับว่ากลับมาเมื่อได้ telemetry จริงเท่านั้น (กัน server ที่รับ connection แต่เงียบ) · บันทึก `ws_lost`/`ws_reconnected` ใน events.jsonl (`e57553b`) | เทสต์: หลุดแล้วต่อได้ → บินต่อจนจบ, RUN ครั้งเดียว · ต่อครั้งแรกไม่ติดแล้วลองใหม่ · ต่อไม่ได้ใน 10 s → `ws_lost` · (ทดสอบจริงทำได้ยากเพราะต้องตัด TCP socket กลางทางซึ่งต้องใช้สิทธิ์ root) |
+
