@@ -1,0 +1,12 @@
+# conda env "drone" (flight-service + vendor/drone-sitl's web server):
+#   conda create -n drone python=3.11 && conda run -n drone pip install -r requirements-drone.txt
+# Versions both were verified with on 2026-10-05/06. Isaac Sim brings its own Python.
+fastapi==0.141.1
+uvicorn==0.52.0
+pydantic==2.13.4
+websockets==17.0
+pymavlink==2.4.49
+numpy==2.4.4
+pillow==12.2.0
+opencv-python==4.13.0.92
+pytest==9.1.1
