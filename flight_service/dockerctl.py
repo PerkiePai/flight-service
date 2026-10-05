@@ -2,6 +2,9 @@
 bundle builds go through drone-sitl's :8090). Never `prune`, never a
 pattern: every call names one image or one container (trap 6)."""
 import asyncio
+import os
+import signal
+from pathlib import Path
 
 from . import policy
 from .jobs import JobFailed
@@ -29,8 +32,8 @@ def tail(text, n=8):
 
 
 class Docker:
-    def __init__(self, run=sh):
-        self.run = run
+    def __init__(self, run=sh, proc_dir="/proc", kill=os.kill):
+        self.run, self.proc_dir, self.kill = run, Path(proc_dir), kill
 
     async def exists(self, ref):
         """False only when docker says the image is not there. Any other
@@ -61,6 +64,33 @@ class Docker:
     async def rmi(self, ref):
         code, _ = await self.run("docker", "rmi", ref, timeout=120)
         return code == 0
+
+    async def stop_pull(self, ref):
+        """SIGTERM every `docker pull <ref>` client, found by its exact argv
+        (never a pattern). Stopping the client cancels the daemon's pull.
+        drone-sitl's web runs the pull; stop-website.sh does not stop it."""
+        want = ["docker", "pull", ref]
+        pids = []
+        for d in self.proc_dir.iterdir():
+            if not d.name.isdigit():
+                continue
+            try:
+                argv = (d / "cmdline").read_bytes().split(b"\0")[:-1]
+            except OSError:
+                continue
+            if [a.decode(errors="replace") for a in argv] == want:
+                try:
+                    self.kill(int(d.name), signal.SIGTERM)
+                    pids.append(int(d.name))
+                except ProcessLookupError:
+                    pass
+        return pids
+
+    async def tags(self, prefix):
+        """repository:tag of every image whose name starts with `prefix`."""
+        code, out = await self.run("docker", "image", "ls", "--filter", f"reference={prefix}*",
+                                   "--format", "{{.Repository}}:{{.Tag}}", timeout=30)
+        return out.split() if code == 0 else []
 
     async def load(self, path, timeout):
         """docker load -i; what it loaded (names, or image IDs if untagged)."""

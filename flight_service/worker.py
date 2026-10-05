@@ -235,6 +235,8 @@ class Worker:
         job.owns_sim = True
         self.store.save(job)
         await self.sim.start_web()
+        job.pull_started = time.time()      # cleanup sweeps a pull we gave up on
+        self.store.save(job)
         job.image_tag = await self.sitl.pull(job.image, self.s.pull_timeout_s)
         self.store.save(job)
         await self._check_size(job)
@@ -296,8 +298,16 @@ class Worker:
             if job.image_tag:
                 for name in await self.docker.containers_of(job.image_tag):
                     await self.docker.rm_force(name)
+            unfinished_pull = (job.source == "registry" and job.pull_started
+                               and not job.image_tag)
+            if unfinished_pull:                     # killed/timed out/restarted mid-pull
+                pids = await self.docker.stop_pull(job.image)
+                if pids:
+                    log.info("job %s: stopped the docker pull left running (pids %s)", job.id, pids)
             if job.owns_sim:
                 ok = await self.sim.stop()
+            if unfinished_pull and not self.s.keep_image:
+                await self._sweep_late_retags(job)
             for name in job.extra_tags:            # an archive's own names, proven new at load
                 await self.docker.rmi(name)
             if not self.s.keep_image:
@@ -309,6 +319,19 @@ class Worker:
             log.exception("cleanup of %s", job.id)
             ok = False
         return ok
+
+    async def _sweep_late_retags(self, job):
+        """drone-sitl tags a finished pull submission-<stem>-<YYYYmmdd-HHMMSS>.
+        If that happened after we stopped waiting, image_tag never learnt the
+        name: remove any such tag made since this job asked for the pull (one
+        job at a time, and the web page cannot pull while we own it)."""
+        stem = job.image.rsplit("/", 1)[-1].split(":")[0].split("@")[0] or "pulled"  # drone-sitl's rule
+        prefix = f"submission-{stem}-"
+        since = time.strftime("%Y%m%d-%H%M%S", time.localtime(job.pull_started - 2))
+        for name in await self.docker.tags(prefix):
+            ts = name.rsplit(":", 1)[0][len(prefix):]
+            if len(ts) == len(since) and ts >= since:
+                await self.docker.rmi(name)
 
     def _prune(self, also_keep=None):
         keep = {j.id for j in self.store.all() if j.state not in TERMINAL} | {also_keep}

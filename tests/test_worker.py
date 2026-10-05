@@ -418,3 +418,37 @@ def test_unsafe_bundle_is_rejected_before_drone_sitl_sees_it(tmp_path):
     asyncio.run(w.run_job(job))
     assert (job.state, job.reason) == (FAILED, "archive_rejected")
     assert "start_web" not in sim.calls
+
+
+def test_kill_during_pull_stops_the_pull_and_removes_its_leftovers(tmp_path):
+    """Review minor: the pull runs inside drone-sitl's web process; cancelling
+    our request does not stop it, and stop-website.sh leaves its `docker pull`
+    child running. The image (and a late retag) then stayed on the disk."""
+    import time as _t
+    docker, sim, sitl = FakeDocker(), FakeSim(), FakeSitl()
+    sitl.pull_hold = asyncio.Event()
+    late = f"submission-x-{_t.strftime('%Y%m%d-%H%M%S', _t.localtime(_t.time() + 5))}:latest"
+    docker.tags_present = (late, "submission-x-20200101-000000:latest")   # one from long ago
+    _, store, w = setup(tmp_path, docker=docker, sim=sim, sitl=sitl)
+    job = store.new("perkiepai/x:1", 600)
+    w.submit(job)
+
+    async def kill(j):
+        await asyncio.sleep(0.05)
+        assert w.kill(j)
+        while w.phase != "idle":
+            await asyncio.sleep(0.01)
+
+    run_bg(w, store, until=lambda j: j.pull_started is not None, then=kill)
+    assert (job.state, job.failed_in) == (KILLED, PULLING)
+    assert ("stop_pull", "perkiepai/x:1") in docker.calls
+    assert ("rmi", late) in docker.calls                           # retagged after we gave up
+    assert ("rmi", "submission-x-20200101-000000:latest") not in docker.calls
+    assert ("rmi", "perkiepai/x:1") in docker.calls and sim.calls[-1] == "stop"
+
+
+def test_a_finished_pull_leaves_nothing_to_sweep(tmp_path):
+    docker = FakeDocker()
+    _, store, w = setup(tmp_path, docker=docker)
+    asyncio.run(w.run_job(store.new("perkiepai/x:1", 600)))
+    assert not any(c[0] == "stop_pull" for c in docker.calls)

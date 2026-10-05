@@ -69,3 +69,25 @@ def test_load_and_tag_failures_raise():
         with pytest.raises(JobFailed) as e:
             asyncio.run(coro)
         assert e.value.reason == "load_failed"
+
+
+def test_pull_pids_match_the_exact_command_only(tmp_path):
+    """The orphaned `docker pull` is found by its exact argv, never a pattern."""
+    for pid, argv in ((101, ["docker", "pull", "perkiepai/x:1"]),
+                      (102, ["docker", "pull", "perkiepai/other:1"]),
+                      (103, ["bash", "-c", "docker pull perkiepai/x:1"]),
+                      (104, ["docker", "pull", "perkiepai/x:1", "--quiet"])):
+        (tmp_path / str(pid)).mkdir()
+        (tmp_path / str(pid) / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+    (tmp_path / "self").mkdir()
+    killed = []
+    d = Docker(Rec({}), proc_dir=tmp_path, kill=lambda pid, sig: killed.append(pid))
+    assert asyncio.run(d.stop_pull("perkiepai/x:1")) == [101] and killed == [101]
+
+
+def test_tags_lists_one_prefix():
+    run = Rec({("image", "ls"): (0, "submission-x-20261005-120000:latest\nsubmission-x-20200101-000000:latest\n")})
+    assert asyncio.run(Docker(run).tags("submission-x-")) == [
+        "submission-x-20261005-120000:latest", "submission-x-20200101-000000:latest"]
+    assert ["docker", "image", "ls", "--filter", "reference=submission-x-*",
+            "--format", "{{.Repository}}:{{.Tag}}"] in run.calls

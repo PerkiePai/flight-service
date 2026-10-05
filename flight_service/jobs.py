@@ -50,6 +50,7 @@ class Job:
     image_preexisting: bool = True        # safe default: never rmi a ref we did not bring
     owns_sim: bool = False                # this job started drone-sitl's web/sim
     run_at: float | None = None           # wall time RUN was sent
+    pull_started: float | None = None     # wall time the registry pull was asked for
     telemetry: dict | None = None
     log_tail: list = field(default_factory=list)
     score_live: dict | None = None

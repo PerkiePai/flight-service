@@ -88,6 +88,15 @@ class FakeDocker:
         self.calls.append(("rmi", ref))
         return True
 
+    tags_present = ()
+
+    async def stop_pull(self, ref):
+        self.calls.append(("stop_pull", ref))
+        return [4242]
+
+    async def tags(self, prefix):
+        return [t for t in self.tags_present if t.startswith(prefix)]
+
     loaded = ("truck:1",)
     load_hold = None            # an asyncio.Event to wait on inside docker load
     tag_fails = False
@@ -135,7 +144,11 @@ class FakeSitl:
     def __init__(self, tag="submission-x-20261005-120000", fail=None, clip=None):
         self.tag, self.fail, self.clip = tag, fail, clip
 
+    pull_hold = None              # an asyncio.Event to wait on inside the pull
+
     async def pull(self, ref, timeout):
+        if self.pull_hold is not None:
+            await self.pull_hold.wait()
         if self.fail:
             raise JobFailed("pull_failed", self.fail)
         return self.tag
