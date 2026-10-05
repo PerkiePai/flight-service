@@ -1,0 +1,13 @@
+--- a/sim/sites.py
++++ b/sim/sites.py
+@@ -150,7 +150,9 @@
+     spawn_xy=(4.7762, -19.3996),
+     spawn_agl_m=0.5,               # -> spawn_z = 6.4826
+     heading_deg=0.0,
+-    stage_usd="/home/innovation/Tiger/map_setup_output_nt_testgs/drone_map.usda",
++    # flight-service vendor patch 0001: the map ships beside this copy
++    # (vendor/maps/nt-testgs, see vendor/README.md), not in one machine's home.
++    stage_usd="../maps/nt-testgs/drone_map.usda",
+ )
+ 
+ SITES: dict[str, Site] = {s.name: s for s in (BANGKOK_SURVEY_040, NT_TESTGS)}

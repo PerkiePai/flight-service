@@ -1,0 +1,144 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary map_setup_tool = {
+            string created = "2026-09-28 01:13:38"
+            string input = "/home/innovation/Tiger/nt_testgs.usdc"
+            string map_root = "/nt_testgs"
+            string mode = "sublayer"
+            string report = "/home/innovation/Tiger/map_setup_output_nt_testgs/drone_map_report.json"
+        }
+    }
+    metersPerUnit = 1
+    subLayers = [
+        @./drone_map_physics.usdc@,
+        @./nt_testgs.usdc@
+    ]
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    over "MapSetup"
+    {
+        def Xform "Vehicles"
+        {
+            def Xform "Vehicle_01"
+            {
+                quatd xformOp:orient = (0.19802257944292456, 0, 0, 0.9801974586943034)
+                double3 xformOp:scale = (4, 4, 4)
+                double3 xformOp:translate = (8.416461364401584, 8.092896942357603, 5.562)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def Xform "Normalize"
+                {
+                    matrix4d xformOp:transform:mapSetup = ( (1, 0, 0, 0), (0, -0.042050032920682115, -0.9991155062010446, 0), (0, 0.9991155062010446, -0.042050032920682115, 0), (-0.3357326430082322, -0.45120696365677876, 1.9590212285497508, 1) )
+                    uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+
+                    def "Model" (
+                        prepend payload = @./Truck2.usd@
+                    )
+                    {
+                    }
+                }
+
+                def Cube "Collider" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    double size = 1
+                    token visibility = "invisible"
+                    matrix4d xformOp:transform:mapSetup = ( (2.4377977478504183, 0, 0, 0), (0, 0.9157135432984901, 0, 0), (0, 0, 1.0025640524241375, 0), (0, 0, 0.5012820262120687, 1) )
+                    uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+                }
+            }
+
+            def Xform "Vehicle_02"
+            {
+                quatd xformOp:orient = (0.8023997562815861, 0, 0, 0.5967869227113235)
+                double3 xformOp:scale = (4, 4, 4)
+                double3 xformOp:translate = (7.047268609103801, -4.604363251005089, 5.866)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def Xform "Normalize"
+                {
+                    matrix4d xformOp:transform:mapSetup = ( (1, 0, 0, 0), (0, -0.042050032920682115, -0.9991155062010446, 0), (0, 0.9991155062010446, -0.042050032920682115, 0), (-0.3357326430082322, -0.45120696365677876, 1.9590212285497508, 1) )
+                    uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+
+                    def "Model" (
+                        prepend payload = @./Truck2.usd@
+                    )
+                    {
+                    }
+                }
+
+                def Cube "Collider" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    double size = 1
+                    token visibility = "invisible"
+                    matrix4d xformOp:transform:mapSetup = ( (2.4377977478504183, 0, 0, 0), (0, 0.9157135432984901, 0, 0), (0, 0, 1.0025640524241375, 0), (0, 0, 0.5012820262120687, 1) )
+                    uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+                }
+            }
+
+            def Xform "Vehicle_03"
+            {
+                quatd xformOp:orient = (0.1436772555636436, 0, 0, 0.989624598640161)
+                double3 xformOp:scale = (4, 4, 4)
+                double3 xformOp:translate = (66.75339426196413, -11.784306599390023, 4.859)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def Xform "Normalize"
+                {
+                    matrix4d xformOp:transform:mapSetup = ( (1, 0, 0, 0), (0, -0.042050032920682115, -0.9991155062010446, 0), (0, 0.9991155062010446, -0.042050032920682115, 0), (-0.3357326430082322, -0.45120696365677876, 1.9590212285497508, 1) )
+                    uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+
+                    def "Model" (
+                        prepend payload = @./Truck2.usd@
+                    )
+                    {
+                    }
+                }
+
+                def Cube "Collider" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    double size = 1
+                    token visibility = "invisible"
+                    matrix4d xformOp:transform:mapSetup = ( (2.4377977478504183, 0, 0, 0), (0, 0.9157135432984901, 0, 0), (0, 0, 1.0025640524241375, 0), (0, 0, 0.5012820262120687, 1) )
+                    uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+                }
+            }
+        }
+
+        def Xform "SpawnPads"
+        {
+            def Cube "Pad_01" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                double size = 1
+                token visibility = "invisible"
+                matrix4d xformOp:transform:mapSetup = ( (3, 0, 0, 0), (0, 3, 0, 0), (0, 0, 1, 0), (4.7762298583984375, -19.399642944335938, 5.482615432739258, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform:mapSetup"]
+            }
+        }
+    }
+}
+
+def CesiumGeoreferencePrim "CesiumGeoreference"
+{
+    custom double cesium:georeferenceOrigin:height = -35.002
+    custom double cesium:georeferenceOrigin:latitude = 14.028519616
+    custom double cesium:georeferenceOrigin:longitude = 100.43642032
+}
+
+def PhysicsScene "PhysicsScene"
+{
+    vector3f physics:gravityDirection = (0, 0, -1)
+    float physics:gravityMagnitude = 9.81
+}
+

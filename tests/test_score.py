@@ -1,10 +1,9 @@
 import json
 from math import cos, radians
-from pathlib import Path
 
 import pytest
 
-from flight_service.score import ScoreV0, enu, load_truth, score_file
+from flight_service.score import ScoreV0, enu, score_file
 
 ORIGIN = (14.0, 100.0)
 TRUCKS = {"A": (0.0, 0.0), "B": (100.0, 0.0)}
@@ -54,11 +53,3 @@ def test_score_file_reads_detection_journal(tmp_path):
     r = score_file(p, TRUCKS, ORIGIN, "x")
     assert r["truth"]["found"] == ["A", "B"] and r["score"] == 100.0
 
-
-DRONE_SITL = Path.home() / "pai" / "drone-sitl"
-
-
-@pytest.mark.skipif(not DRONE_SITL.is_dir(), reason="needs drone-sitl checkout")
-def test_load_truth_from_drone_sitl():
-    origin, trucks = load_truth(DRONE_SITL, "nt-testgs")
-    assert len(origin) == 2 and len(trucks) >= 1

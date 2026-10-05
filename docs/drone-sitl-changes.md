@@ -1,3 +1,5 @@
+> **ตั้งแต่ 2026-10-06** flight-service รันจากสำเนาใน `vendor/drone-sitl/` (commit `2945783` ซึ่งรวมการแก้ทั้ง 3 ครั้งด้านล่างแล้ว) · การแก้ drone-sitl ต้นทางหลังจากนี้มีผลกับ flight-service ก็ต่อเมื่อซิงก์เข้ามา (`vendor/README.md`)
+
 # แก้ drone-sitl ที่อนุมัติแล้ว — 2026-10-05: `DRONE_SITL_DOCKER_RUN_ARGS` สำหรับ `docker run` ของ agent
 
 - **หลักฐานฝั่ง drone-sitl:** `~/pai/drone-sitl/docs/changes/2026-10-05-docker-run-args.md` (commit `ed5f998` + เอกสารนี้)

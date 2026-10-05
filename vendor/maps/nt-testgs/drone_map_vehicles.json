@@ -1,0 +1,58 @@
+{
+ "exported": "2026-09-28 01:13:38",
+ "stage": {
+  "root_layer": "/home/innovation/Tiger/map_setup_output_nt_testgs/drone_map.usda",
+  "upAxis": "Z",
+  "metersPerUnit": 1.0
+ },
+ "trucks": [
+  {
+   "name": "Vehicle_01",
+   "center": [
+    8.416,
+    8.093,
+    7.567
+   ],
+   "size": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "ground_z": 5.376,
+   "yaw_deg": 157.16,
+   "center_source": "map_setup_tool"
+  },
+  {
+   "name": "Vehicle_02",
+   "center": [
+    7.047,
+    -4.604,
+    7.871
+   ],
+   "size": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "ground_z": 5.627,
+   "yaw_deg": 73.28,
+   "center_source": "map_setup_tool"
+  },
+  {
+   "name": "Vehicle_03",
+   "center": [
+    66.753,
+    -11.784,
+    6.864
+   ],
+   "size": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "ground_z": 5.227,
+   "yaw_deg": 163.48,
+   "center_source": "map_setup_tool"
+  }
+ ]
+}

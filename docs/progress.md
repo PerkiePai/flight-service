@@ -58,3 +58,4 @@ flight-service/
 | 2026-10-05 | drone-sitl race | แก้ `run-website.sh` ที่ต้นทาง (`bda585c`) ตามที่อนุมัติ + หลักฐานทั้งสองโปรเจกต์ |
 | 2026-10-05 | ทางเข้างาน | รับงานได้แค่ทาง API ของ flight-service (curl / ระบบพี่ต้น) · หน้าเว็บ drone-sitl อัปโหลด/pull ไม่ได้ตอน flight-service เปิด (drone-sitl `205eaff`) · branch `feat/core` เก็บไว้ก่อน เจ้าของจัดการเอง |
 | 2026-10-05 | แก้ข้อเล็ก | kill ระหว่าง pull ไม่ทิ้ง image (`2f598f9`) · `/ws` ต่อใหม่ภายใน 10 s (`e57553b`) |
+| 2026-10-06 | standalone | **ทาง A:** สำเนาไฟล์ drone-sitl ที่ใช้จริงใน `vendor/drone-sitl/` (จาก `2945783` ด้วย `scripts/vendor-drone-sitl.sh` + patch) · แผนที่ใน `vendor/maps/nt-testgs/` (ไฟล์ใหญ่ 2 ตัวไม่เข้า git · `SHA256SUMS`) · `scripts/preflight.sh` ตรวจเครื่องใหม่ · **แทนกฎเดิม "ห้าม copy โค้ด drone-sitl"** · แผน `docs/superpowers/plans/2026-10-06-vendor-drone-sitl.md` |

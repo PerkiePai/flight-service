@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# ============================================================================
+# One command to get from nothing to a drone hovering-ready on the Cesium map.
+#
+#   ./sim/launch-sitl.sh
+#
+# Wraps ~/isaac-sim6/isaac-sim.streaming.sh rather than editing it: that file
+# belongs to the Isaac install and gets overwritten on upgrade. Everything this
+# adds is command-line flags plus an --exec bootstrap, so a plain
+# isaac-sim.streaming.sh run still behaves exactly as before.
+#
+# What it removes from the manual routine:
+#   - loading Cesium and typing the origin       -> sim/sites.py
+#   - adding + orienting the map model           -> sim/sites.py (globe anchor)
+#   - adding, placing and hiding the ground plane-> sim/sites.py
+#   - enabling Pegasus and Cesium in the UI      -> --ext-folder / --enable
+#   - pasting the setup script, pressing Play    -> sim/bootstrap.py
+#
+# There is no stage file. The stage is authored fresh and Z-up on every run, so
+# Isaac's unconditional set_stage_up_axis("z") is a no-op rather than a
+# 90-degree rotation of the world. QGroundControl still gets opened and armed
+# by you, on purpose.
+#
+# Per-flight overrides, no file editing needed:
+#   SITE=nt-testgs ./sim/launch-sitl.sh                 # which site (this is the default)
+#   SITE=bangkok-survey-040 ./sim/launch-sitl.sh         # the old survey-mesh site
+#   SPAWN_XYZ='[12.0, -4.0, -26.5]' ./sim/launch-sitl.sh # takeoff point (ABSOLUTE z)
+#   HEADING_DEG=90 ./sim/launch-sitl.sh                  # compass heading
+#   AUTOPLAY=0 ./sim/launch-sitl.sh                      # spawn but stay stopped
+#
+# SPAWN_XYZ's z is absolute, so an override has to account for the ground plane
+# (ground_z = -26.99 at this site). Prefer editing spawn_agl_m in sim/sites.py,
+# which is measured from the ground and cannot drift away from it.
+# ============================================================================
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Secrets live outside git. Sourced before the checks below so a fresh terminal
+# needs no setup; an already-exported CESIUM_ION_TOKEN still wins, which keeps
+# `CESIUM_ION_TOKEN=... ./sim/launch-sitl.sh` working for a one-off token.
+SECRETS_FILE="${SECRETS_FILE:-$REPO_DIR/sim/secrets.env}"
+TOKEN_SOURCE="unset"
+if [[ -n "${CESIUM_ION_TOKEN:-}" ]]; then
+    TOKEN_SOURCE="environment"
+fi
+if [[ -f "$SECRETS_FILE" ]]; then
+    _token_before="${CESIUM_ION_TOKEN:-}"
+    # shellcheck source=/dev/null
+    source "$SECRETS_FILE"
+    if [[ -n "$_token_before" ]]; then
+        export CESIUM_ION_TOKEN="$_token_before"      # environment wins
+    elif [[ -n "${CESIUM_ION_TOKEN:-}" ]]; then
+        TOKEN_SOURCE="$SECRETS_FILE"
+    fi
+    unset _token_before
+fi
+# Report the SOURCE, never the token itself.
+echo "launch-sitl: ion token  $TOKEN_SOURCE"
+
+ISAAC_DIR="${ISAAC_DIR:-$HOME/isaac-sim6}"
+SITE="${SITE:-nt-testgs}"
+SETUP_SCRIPT="${SETUP_SCRIPT:-$REPO_DIR/drone_setup_px4_cesium.py}"
+PEGASUS_EXTS="${PEGASUS_EXTS:-$HOME/PegasusSimulator/extensions}"
+CESIUM_EXTS="${CESIUM_EXTS:-$HOME/cesium-omniverse-6.0-build/exts}"
+
+ISAAC_SH="$ISAAC_DIR/isaac-sim.streaming.sh"
+
+die() { echo "launch-sitl: $*" >&2; exit 1; }
+
+[[ -x "$ISAAC_SH"        ]] || die "Isaac Sim launcher not found at $ISAAC_SH (set ISAAC_DIR=)"
+[[ -f "$SETUP_SCRIPT"    ]] || die "setup script not found at $SETUP_SCRIPT (set SETUP_SCRIPT=)"
+[[ -d "$PEGASUS_EXTS"    ]] || die "Pegasus extensions not found at $PEGASUS_EXTS (set PEGASUS_EXTS=)"
+# Does this site stream Cesium tiles at all? Map-stage sites (stage_usd) do not.
+USES_CESIUM="$(PYTHONPATH="$REPO_DIR/sim" python3 -c \
+    'import sys, sites; print(int(sites.get_site(sys.argv[1]).uses_cesium))' "$SITE")" \
+    || die "unknown site '$SITE' (see sim/sites.py)"
+
+if [[ "$USES_CESIUM" == 1 ]]; then
+[[ -d "$CESIUM_EXTS"     ]] || die "Cesium extensions not found at $CESIUM_EXTS (set CESIUM_EXTS=)"
+[[ -n "${CESIUM_ION_TOKEN:-}" ]] || die "CESIUM_ION_TOKEN is not set.
+  Cesium cannot stream tiles without it. Put it in a gitignored secrets file:
+    cp sim/secrets.env.example sim/secrets.env && chmod 600 sim/secrets.env
+    \$EDITOR sim/secrets.env
+  Get one at https://ion.cesium.com/tokens"
+fi
+
+# --- consumed by sim/bootstrap.py -------------------------------------------
+export SITL_SITE="$SITE"
+export SITL_USES_CESIUM="$USES_CESIUM"
+export SITL_SETUP_SCRIPT="$SETUP_SCRIPT"
+export SITL_AUTOPLAY="${AUTOPLAY:-1}"
+export SITL_TILE_SETTLE_FRAMES="${TILE_SETTLE_FRAMES:-240}"
+
+# --- consumed by drone_setup_px4_cesium.py's env-override block -------------
+# Only exported when the operator actually set them; otherwise the site config
+# supplies the spawn pose (bootstrap.py uses os.environ.setdefault). Written as
+# `if` blocks rather than `[[ ... ]] && export ...` because under `set -e` a
+# false && list is a footgun that depends on where it sits in the file.
+#
+# Anything else in that script's tunables block can be set the same way, e.g.
+#   DRONE_SETUP_ADD_WIND=True DRONE_SETUP_STREAM_PORT=8081 ./sim/launch-sitl.sh
+if [[ -n "${SPAWN_XYZ:-}" ]]; then
+    export DRONE_SETUP_SPAWN_XYZ="$SPAWN_XYZ"
+fi
+if [[ -n "${HEADING_DEG:-}" ]]; then
+    export DRONE_SETUP_HEADING_DEG="$HEADING_DEG"
+fi
+
+echo "launch-sitl: site       $SITE"
+echo "launch-sitl: setup      $SETUP_SCRIPT"
+echo "launch-sitl: spawn      ${SPAWN_XYZ:-from sim/sites.py}  heading ${HEADING_DEG:-from sim/sites.py}"
+
+# Cesium's tile-request cache is one user-global SQLite file
+# (~/.cache/ov/cesium-request-cache.sqlite, ~10 GB warm on this box). Two
+# Isaac + Cesium instances writing it concurrently can deadlock each other
+# with SQLite "database is locked" (memory: cesium-cache-lock-contention).
+#
+# Default is that shared file. It is WARM, so cesium.omniverse starts in tens
+# of ms. Do NOT casually point Cesium at a private dir: a COLD/empty cache
+# makes cesium.omniverse on_startup() block forever on a first fetch with no
+# timeout, and Isaac never finishes booting (the log just stops right after
+# "Cesium cache file: <path>"). A private cache is only safe pre-warmed.
+#
+# Opt in with OMNI_CACHE_DIR=/some/dir ONLY when you know a second, unrelated
+# Isaac instance is running. We seed the private cache from the global one on
+# first use (a one-off ~10 GB copy) so startup does not hang.
+ISAAC_CACHE_ARGS=()
+if [[ "$USES_CESIUM" != 1 ]]; then
+    echo "launch-sitl: cesium     off (site $SITE is a map stage -- no tile fetching)"
+elif [[ -n "${OMNI_CACHE_DIR:-}" ]]; then
+    mkdir -p "$OMNI_CACHE_DIR"
+    _global_cesium="$HOME/.cache/ov/cesium-request-cache.sqlite"
+    _private_cesium="$OMNI_CACHE_DIR/cesium-request-cache.sqlite"
+    if [[ ! -s "$_private_cesium" && -s "$_global_cesium" ]]; then
+        echo "launch-sitl: seeding private Cesium cache from global (~$(du -h "$_global_cesium" | cut -f1), one-off copy) -- a cold cache hangs startup"
+        cp -n "$_global_cesium" "$_private_cesium"
+    fi
+    echo "launch-sitl: tile cache $OMNI_CACHE_DIR (private -- OMNI_CACHE_DIR set)"
+    ISAAC_CACHE_ARGS+=("--/app/tokens/omni_global_cache=$OMNI_CACHE_DIR")
+else
+    echo "launch-sitl: tile cache ~/.cache/ov (shared + warm; set OMNI_CACHE_DIR only if a second Isaac instance is up)"
+fi
+
+CESIUM_ARGS=()
+if [[ "$USES_CESIUM" == 1 ]]; then
+    CESIUM_ARGS=(--ext-folder "$CESIUM_EXTS" --enable cesium.omniverse)
+fi
+
+exec "$ISAAC_SH" \
+    --ext-folder "$PEGASUS_EXTS" \
+    ${CESIUM_ARGS[@]+"${CESIUM_ARGS[@]}"} \
+    --enable pegasus.simulator \
+    --exec "$REPO_DIR/sim/bootstrap.py" \
+    ${ISAAC_CACHE_ARGS[@]+"${ISAAC_CACHE_ARGS[@]}"} \
+    "$@"

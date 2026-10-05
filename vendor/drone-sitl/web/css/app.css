@@ -1,0 +1,126 @@
+:root { color-scheme: dark; }
+body { margin:0; background:#111; color:#ddd; font:14px system-ui,sans-serif;
+       display:flex; flex-direction:column; align-items:center; gap:10px;
+       padding:10px; touch-action:none; user-select:none;
+       -webkit-user-select:none; }
+#panels { display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+          width:100%; }
+#video, #video-chase { width:100%; aspect-ratio:16/10; background:#000;
+         border:1px solid #333; object-fit:cover; }
+/* Detection debug view: mirrors #video's current src (see js/detections.js)
+   and draws it to canvas with the agent's live bounding boxes on top. The
+   canvas's pixel buffer is sized to det-img's naturalWidth/Height in JS, the
+   same pixel space the boxes are in -- CSS then just stretches that bitmap
+   to fill the box below. Image and boxes are baked into one bitmap before
+   that stretch, so they stay aligned even if the aspect ratio doesn't match
+   16/10 (unlike #video/#video-chase's object-fit:cover, which would crop
+   the image but not the (separately-drawn) boxes). */
+#detview { width:100%; aspect-ratio:16/10; background:#000;
+           border:1px solid #333; position:relative; }
+#det-canvas { width:100%; height:100%; }
+/* Labelled panel: header naming the view, the view, an optional footnote. */
+.panel { width:min(92vw,640px); display:flex; flex-direction:column; gap:6px;
+         margin:0; }
+.panel-hd { display:flex; justify-content:space-between; align-items:baseline;
+            gap:8px; font-size:12px; line-height:1.2; }
+.panel-hd b { letter-spacing:.6px; color:#eee; }
+.panel-hd span { color:#8a8a8a; text-align:right; }
+.panel-ft { font-size:11px; color:#777; }
+#mapwrap { gap:6px; }
+/* Which marker is which. Colours match the markers drawn in map.js. */
+#maplegend { display:flex; gap:12px; flex-wrap:wrap; font-size:11px;
+             color:#9a9a9a; font-variant-numeric:tabular-nums; }
+#maplegend .lg-est { color:#6f6; }
+#maplegend .lg-gt  { color:#6cf; }
+#maplegend .lg-wp  { color:#fc6; }
+#map { width:100%; aspect-ratio:16/10; background:#000;
+       border:1px solid #333; }
+/* Leaflet ships light-themed controls that glare on a dark flight page. */
+.leaflet-container { background:#000; font:12px system-ui,sans-serif; }
+.leaflet-control-attribution { background:rgba(0,0,0,.6); color:#888; }
+.leaflet-control-attribution a { color:#aaa; }
+/* The drone: a triangle rotated to the live heading. A divIcon, not an
+   image marker -- vendored Leaflet has no image sprites to 404 on. */
+.drone-icon { display:flex; align-items:center; justify-content:center; }
+.drone-arrow { width:0; height:0; border-left:9px solid transparent;
+               border-right:9px solid transparent; border-bottom:22px solid #6f6;
+               filter:drop-shadow(0 0 3px #000); transform-origin:50% 65%; }
+/* Ground truth: larger, translucent cyan, drawn UNDER the green estimate --
+   the gap between the two IS the estimator error. */
+.gt-arrow { width:0; height:0; border-left:12px solid transparent;
+            border-right:12px solid transparent; border-bottom:28px solid #6cf;
+            filter:drop-shadow(0 0 3px #000); transform-origin:50% 65%;
+            opacity:.5; }
+.wp-icon { display:flex; align-items:center; justify-content:center;
+           width:22px; height:22px; border-radius:50%; background:#fc6;
+           color:#111; font:bold 12px system-ui,sans-serif;
+           border:2px solid #111; cursor:pointer; }
+.wp-icon.active { background:#6f6; }
+#mapbar { display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+          justify-content:center; }
+#mapbar button { padding:9px 14px; border-radius:8px; border:1px solid #444;
+                 background:#222; color:#eee; font-size:14px; }
+#mapbar button:disabled { opacity:.35; }
+#mapbar input { width:62px; padding:7px; border-radius:6px;
+                border:1px solid #444; background:#222; color:#eee;
+                font-size:14px; }
+#mstat { min-height:1.3em; font-size:13px; text-align:center; color:#9a9a9a;
+         font-variant-numeric:tabular-nums; }
+#telem { display:flex; gap:14px; flex-wrap:wrap; justify-content:center;
+         font-variant-numeric:tabular-nums; }
+#telem b { color:#fff; font-weight:600; }
+.bad { color:#f66; } .good { color:#6f6; } .wait { color:#fc6; }
+#controls { display:flex; gap:22px; align-items:center; }
+.stick { width:148px; height:148px; border-radius:50%; background:#222;
+         border:1px solid #444; position:relative; touch-action:none; }
+.stick .knob { width:56px; height:56px; border-radius:50%; background:#2a6;
+               border:1px solid #6f6; position:absolute; left:50%; top:50%;
+               transform:translate(-50%,-50%); pointer-events:none; }
+.cap { font-size:11px; color:#888; text-align:center; margin-top:4px; }
+#cmds { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+#cmds button { padding:9px 14px; border-radius:8px; border:1px solid #444;
+               background:#222; color:#eee; font-size:14px; }
+#cmds button:disabled { opacity:.35; }
+/* Instant local feedback that the click landed, independent of the network:
+   it fires even if the WebSocket is dead. */
+button:active:not(:disabled) { transform:translateY(1px); filter:brightness(1.5); }
+/* Only on real pointers -- :hover on a touchscreen sticks after tapping. */
+@media (hover:hover) {
+  button:hover:not(:disabled) { border-color:#888; }
+}
+/* Flashes when the command actually goes out over the WebSocket, so a
+   registered click is distinguishable from a dropped one. */
+#cmds button.sent { background:#2a6; border-color:#6f6; }
+/* FREEZE SIM is a sim-debug action, not a flight command -- deliberately
+   not green like .sent, so it never reads as "command acknowledged". */
+#c-freeze.frozen { background:#48c; border-color:#8cf; }
+#c-rec.recording { background:#b22; border-color:#f66; color:#fff; }
+/* Raw hil_tap.py stream readout -- exact per-second counts, not a chart. */
+#hil-stream { font:12px/1.4 ui-monospace, monospace; color:#888;
+              text-align:center; min-height:1.3em; }
+#hil-stream.live { color:#6f6; }
+#hil-stream.frozen { color:#8cf; }
+#status { min-height:1.3em; font-size:13px; text-align:center; }
+
+/* Agent panel: upload a control script, run it, watch its log. */
+#agent { margin:8px; font:13px/1.4 system-ui, sans-serif; }
+#agent .a-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+#agent select { max-width:42vw; background:#222; color:#eee;
+                border:1px solid #444; border-radius:6px; padding:6px; }
+#agent .a-file-btn { border:1px solid #444; border-radius:6px; padding:6px 10px;
+                     background:#222; color:#eee; cursor:pointer; }
+#agent .a-file-btn input { display:none; }
+#agent button { padding:8px 12px; border-radius:8px; border:1px solid #444;
+                background:#222; color:#eee; font-size:13px; }
+#agent button:disabled { opacity:.35; }
+#agent #a-state { color:#9cf; }
+#a-log, #a-build-log { margin-top:6px; height:9em; overflow-y:auto; white-space:pre-wrap;
+         background:#111; color:#cde; padding:6px; border-radius:6px;
+         font:12px/1.35 ui-monospace, Menlo, monospace; }
+#a-log:empty, #a-build-log:empty { display:none; }
+
+/* Detection clip controls in the DETECTIONS panel header (js/detrec.js) */
+#detrec { margin-left:auto; display:flex; gap:6px; align-items:center; font-size:12px; }
+#detrec button { padding:2px 8px; font-size:12px; }
+#detrec a { color:#9cf; }
+#dr-rec.recording { background:#b22; border-color:#f66; color:#fff; }

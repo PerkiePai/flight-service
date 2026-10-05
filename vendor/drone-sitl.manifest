@@ -1,0 +1,33 @@
+# Files flight-service runs from drone-sitl. scripts/vendor-drone-sitl.sh copies
+# exactly these from one commit into vendor/drone-sitl/, keeping drone-sitl's
+# layout: its scripts find each other relative to the repo root.
+#
+# Web server :8090 (pull/upload/build, AgentRun, /ws, detections) and its imports
+joystick-server.py
+web
+streaming/agent_control.py
+streaming/det_recorder.py
+streaming/detections.py
+streaming/docker_build.py
+streaming/offboard.py
+streaming/waypoints.py
+competition/__init__.py
+competition/agent.py
+competition/commands.py
+competition/frames.py
+competition/harness.py
+competition/state.py
+# competition-base image (bundle uploads build FROM it) copies agent_runner.py + competition/
+agent_runner.py
+docker/competition-base/Dockerfile
+# Isaac Sim + PX4 bring-up
+sim/run-website.sh
+sim/stop-website.sh
+sim/launch-sitl.sh
+sim/bootstrap.py
+sim/sites.py
+sim/stage_builder.py
+sim/secrets.env.example
+drone_setup_px4_cesium.py
+# Truck truth + flight checker (flight_service/score.py, finalize.py)
+examples/competition-submission/fly_headless.py

@@ -1,0 +1,362 @@
+{
+ "created": "2026-09-28 01:13:38",
+ "tool": "map_setup_tool.py build",
+ "output": "/home/innovation/Tiger/map_setup_output_nt_testgs/drone_map.usda",
+ "physics_layer": "/home/innovation/Tiger/map_setup_output_nt_testgs/drone_map_physics.usdc",
+ "input": "/home/innovation/Tiger/nt_testgs.usdc",
+ "mode": "sublayer",
+ "map_root": "/nt_testgs",
+ "deactivated": [],
+ "stage": {
+  "upAxis": "Z",
+  "metersPerUnit": 1.0,
+  "georeference": {
+   "path": "/CesiumGeoreference",
+   "latitude": 14.028519616,
+   "longitude": 100.43642032,
+   "height": -35.002
+  }
+ },
+ "flatten": {
+  "applied": false,
+  "reason": "เป็น identity อยู่แล้ว",
+  "world_before": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ]
+ },
+ "calibration": {
+  "mode": "auto",
+  "tilt_before_deg": 0.1471,
+  "applied": false,
+  "plane_residual_p5_p50_p95": [
+   -16.78,
+   -0.873,
+   1.276
+  ],
+  "ransac_thresh": 0.579,
+  "matrix_input_to_output": [
+   [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ]
+ },
+ "terrain": {
+  "bounds_min": [
+   -125.224,
+   -142.4,
+   -12.039
+  ],
+  "bounds_max": [
+   124.776,
+   151.6,
+   21.335
+  ],
+  "size": [
+   250.0,
+   294.0,
+   33.374
+  ],
+  "mesh_prims": [
+   "/nt_testgs"
+  ]
+ },
+ "safety": {
+  "terrain_collider": {
+   "prim": "/World/MapSetup/Colliders/Terrain",
+   "cell_m": 2.0,
+   "surface": "top",
+   "vertices": 18648,
+   "triangles": 36750,
+   "coverage": 1.0,
+   "approximation": "none (static triangle mesh)"
+  },
+  "catch_floor_z": -22.039,
+  "existing_colliders": []
+ },
+ "profiles": {
+  "Truck2_gs": {
+   "usd_path": "/home/innovation/Downloads/Truck2.usd",
+   "prim_path": null,
+   "asset_type": "gaussian_splat",
+   "up_axis": "-Y",
+   "forward_axis": "+X",
+   "meters_per_unit": 1.0,
+   "mpu_source": "profile",
+   "unit_factor": 1.0,
+   "bounds_percentile": [
+    1.0,
+    99.0
+   ],
+   "size_normalized": [
+    2.4378,
+    0.9157,
+    1.0026
+   ],
+   "scale_mode": "fixed",
+   "scale": 4.0,
+   "final_size": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "collider_size": [
+    9.751190991401673,
+    3.6628541731939603,
+    4.01025620969655
+   ],
+   "n_points": 269275,
+   "warnings": []
+  }
+ },
+ "vehicles": [
+  {
+   "name": "Vehicle_01",
+   "prim": "/World/MapSetup/Vehicles/Vehicle_01",
+   "profile": "Truck2_gs",
+   "source": "pca",
+   "position": [
+    8.416,
+    8.093,
+    5.562
+   ],
+   "yaw_deg": 157.16,
+   "scale": 4.0,
+   "size_lwh_m": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "ground_z": 5.562,
+   "footprint": {
+    "median": 5.562,
+    "min": 4.992,
+    "max": 5.889,
+    "spread": 0.897,
+    "n": 15
+   },
+   "ground_ring": {
+    "ground_z": 5.376,
+    "source": "ring p25",
+    "center_z": 5.541,
+    "ring_n": 36,
+    "ring_min": -4.15,
+    "ring_max": 9.59
+   },
+   "roof_z": 9.572,
+   "world_bbox_min": [
+    3.212,
+    4.512,
+    5.562
+   ],
+   "world_bbox_max": [
+    13.621,
+    11.673,
+    9.572
+   ],
+   "verify_bottom_z": 5.562,
+   "verify_height_m": 4.01
+  },
+  {
+   "name": "Vehicle_02",
+   "prim": "/World/MapSetup/Vehicles/Vehicle_02",
+   "profile": "Truck2_gs",
+   "source": "pca",
+   "position": [
+    7.047,
+    -4.604,
+    5.866
+   ],
+   "yaw_deg": 73.28,
+   "scale": 4.0,
+   "size_lwh_m": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "ground_z": 5.866,
+   "footprint": {
+    "median": 5.866,
+    "min": 5.258,
+    "max": 6.403,
+    "spread": 1.145,
+    "n": 15
+   },
+   "ground_ring": {
+    "ground_z": 5.627,
+    "source": "ring p25",
+    "center_z": 5.258,
+    "ring_n": 36,
+    "ring_min": 3.623,
+    "ring_max": 8.654
+   },
+   "roof_z": 9.876,
+   "world_bbox_min": [
+    3.891,
+    -9.801,
+    5.866
+   ],
+   "world_bbox_max": [
+    10.204,
+    0.592,
+    9.876
+   ],
+   "warning": "พื้นใต้รถสูงต่างกัน 1.15 m (> 1.0)",
+   "verify_bottom_z": 5.866,
+   "verify_height_m": 4.01
+  },
+  {
+   "name": "Vehicle_03",
+   "prim": "/World/MapSetup/Vehicles/Vehicle_03",
+   "profile": "Truck2_gs",
+   "source": "pca",
+   "position": [
+    66.753,
+    -11.784,
+    4.859
+   ],
+   "yaw_deg": 163.48,
+   "scale": 4.0,
+   "size_lwh_m": [
+    9.751,
+    3.663,
+    4.01
+   ],
+   "ground_z": 4.859,
+   "footprint": {
+    "median": 4.859,
+    "min": 4.247,
+    "max": 5.194,
+    "spread": 0.946,
+    "n": 15
+   },
+   "ground_ring": {
+    "ground_z": 5.227,
+    "source": "ring p25",
+    "center_z": 4.859,
+    "ring_n": 36,
+    "ring_min": -4.648,
+    "ring_max": 9.804
+   },
+   "roof_z": 8.869,
+   "world_bbox_min": [
+    61.558,
+    -14.927,
+    4.859
+   ],
+   "world_bbox_max": [
+    71.948,
+    -8.642,
+    8.869
+   ],
+   "verify_bottom_z": 4.859,
+   "verify_height_m": 4.01
+  }
+ ],
+ "spawn_pads": [
+  {
+   "request": "auto",
+   "found": true,
+   "prim": "/World/MapSetup/SpawnPads/Pad_01",
+   "pad_center": [
+    4.776,
+    -19.4,
+    5.973
+   ],
+   "pad_size_m": 3.0,
+   "surface_spread_m": 0.254,
+   "moved_m": 23.77,
+   "spawn_enu": [
+    4.7762,
+    -19.3996,
+    6.4826
+   ],
+   "ground_z": 5.9826
+  }
+ ],
+ "verify": {
+  "checks": [
+   {
+    "name": "MapSetup อยู่ในไฟล์",
+    "ok": true,
+    "detail": "/World/MapSetup"
+   },
+   {
+    "name": "ความเอียงพื้น (world)",
+    "ok": true,
+    "detail": "0.1471°"
+   },
+   {
+    "name": "มี collider",
+    "ok": true,
+    "detail": "6 prim"
+   },
+   {
+    "name": "Vehicle_01 ฐานรถแตะพื้น",
+    "ok": true,
+    "detail": "ฐาน(p1)=5.562 พื้น=5.562 · สูง(p1-p99)=4.01 m"
+   },
+   {
+    "name": "Vehicle_02 ฐานรถแตะพื้น",
+    "ok": true,
+    "detail": "ฐาน(p1)=5.866 พื้น=5.866 · สูง(p1-p99)=4.01 m"
+   },
+   {
+    "name": "Vehicle_03 ฐานรถแตะพื้น",
+    "ok": true,
+    "detail": "ฐาน(p1)=4.859 พื้น=4.859 · สูง(p1-p99)=4.01 m"
+   },
+   {
+    "name": "/World/MapSetup/SpawnPads/Pad_01 อยู่บนพื้น",
+    "ok": true,
+    "detail": "ผิวพื้น=5.877930452592555 แท่น=5.9826"
+   }
+  ],
+  "ok": true
+ },
+ "compare_to_report": null,
+ "note": "ความสูงทั้งหมดเป็นหน่วยเมตร frame ของ output · ground_z รถ = median พื้นใต้ฐาน · ground_ring = วิธีเดียวกับ drone_demo/measure_ground.py"
+}

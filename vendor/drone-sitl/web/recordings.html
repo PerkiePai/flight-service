@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detection clips</title>
+<style>
+  body { background:#111; color:#ddd; font:14px system-ui, sans-serif; margin:0; padding:16px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:24px 0 8px; color:#9cf; }
+  p.hint { color:#888; margin:0 0 12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:14px; }
+  .clip { background:#1b1b1b; border:1px solid #333; border-radius:6px; padding:8px; }
+  .clip video { width:100%; background:#000; border-radius:4px; }
+  .meta { font-size:12px; color:#aaa; margin-top:6px; line-height:1.5; word-break:break-all; }
+  .meta b { color:#ddd; }
+  .meta a { color:#9cf; }
+  .empty { color:#777; }
+</style>
+</head>
+<body>
+<h1>Detection clips</h1>
+<p class="hint">Recorded by joystick-server from the Detections panel (camera + agent boxes + latest log).
+Files: <code>recordings/detections/&lt;date&gt;/&lt;time&gt;_&lt;agent&gt;/</code> &middot; picked: <code>recordings/showcase/</code></p>
+<h2>Showcase</h2>
+<div id="showcase" class="grid"></div>
+<h2>Recent</h2>
+<div id="recent" class="grid"></div>
+<script type="module">
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const video = path => `<video controls preload="metadata" src="/recordings/files/${encodeURI(path)}"></video>`;
+const r = await fetch('/detrec/list');
+const { clips, showcase } = await r.json();
+document.getElementById('showcase').innerHTML = showcase.length
+  ? showcase.map(p => `<div class="clip">${video(p)}<div class="meta"><b>${esc(p.split('/').pop())}</b></div></div>`).join('')
+  : '<div class="empty">nothing yet &mdash; press &#9733; on the Detections panel after a good run</div>';
+document.getElementById('recent').innerHTML = clips.length
+  ? clips.map(c => {
+      const ev = Object.entries(c.events || {}).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(' &middot; ');
+      return `<div class="clip">${video(c.video)}<div class="meta">
+        <b>${esc(c.label)}</b><br>${esc(c.started)} &middot; ${c.duration_s ?? '?'} s &middot; ${esc(c.end_state || '')}<br>
+        ${ev || 'no events'} &middot; <a href="/recordings/files/${encodeURI(c.log)}" target="_blank">log</a></div></div>`;
+    }).join('')
+  : '<div class="empty">no clips yet &mdash; RUN an agent (auto) or press REC</div>';
+</script>
+</body>
+</html>
