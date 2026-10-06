@@ -49,3 +49,18 @@ def http(method, url, token=None, body=None, raw=False, ctype=None):
     except urllib.error.HTTPError as e:
         payload = e.read()
         return e.code, payload if raw else json.loads(payload or b"{}")
+
+
+def sse_events(payload):
+    """[(event, id, data)] of a Server-Sent Events byte stream, data parsed
+    as JSON. A keepalive comment is ("ping", None, None)."""
+    out = []
+    for block in payload.decode().split("\n\n"):
+        if not block:
+            continue
+        if block.startswith(":"):
+            out.append(("ping", None, None))
+            continue
+        f = dict(line.split(": ", 1) for line in block.split("\n"))
+        out.append((f["event"], int(f["id"]) if "id" in f else None, json.loads(f["data"])))
+    return out
