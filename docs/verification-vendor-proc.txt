@@ -1,0 +1,25 @@
+# หลักฐาน process ระหว่างบินรอบ 1 (2026-10-06 07:53, job ที่ state=flying)
+# เก็บทีละคำสั่ง (ไม่ใช้สคริปต์รวมในแผน เพราะ hook เขียนคำสั่งรวมทับ) ผลจริงตามนี้
+
+## Isaac kit ของเรา (pid 2755367) — คำสั่งมี isaacsim.exp.full.streaming.kit + --ext-folder PegasusSimulator
+cwd = /home/innovation/pai/flight-service/vendor/drone-sitl
+
+## joystick-server (pid 2755109, 2755166)
+cwd = /home/innovation/pai/flight-service/vendor/drone-sitl   (ทั้งสองตัว)
+
+## process ที่มี path pai/drone-sitl/ ในคำสั่ง
+0 ตัว
+
+## process อื่นที่พบ (ไม่ใช่ sim ของใคร ไม่ได้แตะ)
+SCREEN -S friend (pid 2109558) — screen session ว่าง ไม่มี sim / run_ardu_isaac / arducopter / px4 ของ friend รันอยู่
+(อีกตัวที่เจอเป็น shell ของคำสั่งตรวจนี้เอง)
+
+## layer ที่ Isaac mmap ไว้ใน /proc/2755367/maps (ทุกตัวอยู่ใน vendor/maps)
+/home/innovation/pai/flight-service/vendor/maps/nt-testgs/drone_map_physics.usdc
+/home/innovation/pai/flight-service/vendor/maps/nt-testgs/nt_testgs.usdc
+/home/innovation/pai/flight-service/vendor/maps/nt-testgs/Truck2.usd
+
+## หมายเหตุ
+- ส่วน "bootstrap จาก vendor" ในแผน (pgrep ด้วย path .../vendor/drone-sitl/sim/bootstrap.py) ได้ pid 2755367 เพราะ launch-sitl.sh ส่ง bootstrap.py ผ่าน kit --exec
+- ไม่พบ path นอก vendor/ ในหลักฐานทั้งหมดข้างต้น
+- ไฟล์เก่า (รอบที่ถูก sim ของ friend ฆ่า): docs/verification-vendor-run0-killed*.{log,txt}

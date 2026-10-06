@@ -10,6 +10,7 @@
 | 4 | ทดสอบจริง | plan Task 13 · บินเต็ม + kill + pull ล้ม + (เพิ่ม) ช่องรอ/ดาวน์โหลดระหว่างบิน/SIGTERM · `docs/verification.md` | ✅ ผ่านทุกรอบ · บินจบ score 95.6 รถ 3/3 · เจอ race ตอนบูตใน run-website.sh แก้ฝั่งเรา (`c070270`) · ⛔ รออนุมัติขั้น 5 |
 | 5 | README | plan Task 14 | ✅ `README.md` (ทำตามจริง 1 รอบ) |
 | B | รับไฟล์ image ผ่าน curl (archive + bundle) | design 12 · plan B1–B4 | ✅ โค้ด + review (แก้ Critical 3 + Important 3 ใน `5d368b6`) · บินจริงทั้งสองแบบ `done` · 145 tests ผ่าน |
+| V | standalone (vendor drone-sitl) | แผน `docs/superpowers/plans/2026-10-06-vendor-drone-sitl.md` · `vendor/` · `scripts/preflight.sh` | ✅ โค้ด + เทสต์ 195 ข้อ · บินจริง 2 รอบผ่านบนสำเนา (94.4 / 96.8, 3/3) หลังรอบแรกถูก sim ของโปรเจกต์อื่นฆ่า · README หัวข้อ "ย้ายไปเครื่องใหม่" ✅ |
 
 ## โครงโฟลเดอร์ (สร้างใน Task 1)
 
@@ -59,3 +60,4 @@ flight-service/
 | 2026-10-05 | ทางเข้างาน | รับงานได้แค่ทาง API ของ flight-service (curl / ระบบพี่ต้น) · หน้าเว็บ drone-sitl อัปโหลด/pull ไม่ได้ตอน flight-service เปิด (drone-sitl `205eaff`) · branch `feat/core` เก็บไว้ก่อน เจ้าของจัดการเอง |
 | 2026-10-05 | แก้ข้อเล็ก | kill ระหว่าง pull ไม่ทิ้ง image (`2f598f9`) · `/ws` ต่อใหม่ภายใน 10 s (`e57553b`) |
 | 2026-10-06 | standalone | **ทาง A:** สำเนาไฟล์ drone-sitl ที่ใช้จริงใน `vendor/drone-sitl/` (จาก `2945783` ด้วย `scripts/vendor-drone-sitl.sh` + patch) · แผนที่ใน `vendor/maps/nt-testgs/` (ไฟล์ใหญ่ 2 ตัวไม่เข้า git · `SHA256SUMS`) · `scripts/preflight.sh` ตรวจเครื่องใหม่ · **แทนกฎเดิม "ห้าม copy โค้ด drone-sitl"** · แผน `docs/superpowers/plans/2026-10-06-vendor-drone-sitl.md` |
+| 2026-10-06 | sim ชนกับโปรเจกต์อื่น | `~/friend/.../run_ardu_isaac.sh` `kill -9` ทุก `isaacsim.exp.full.streaming.kit` → ฆ่า Isaac ของเรากลางบิน (รอบ 0 ของ vendor, `arming_timeout`) · เราไม่แตะของเขา รอให้ว่างแล้วบินใหม่ · `sim_busy` กันได้แค่ตอนเริ่มงาน ไม่กันคนเปิดทับระหว่างบิน · **ยังไม่แก้**: ต้องตกลงกับเจ้าของสคริปต์นั้น/แยกเครื่อง · ผู้ใช้อนุมัติข้ามประตูอนุมัติ Task 6–7 ให้รันตอน 05:00 (2026-10-06) |

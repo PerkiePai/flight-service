@@ -1,0 +1,45 @@
+{"job_id":"j-20261006-022911-a24b","state":"queued","source":"registry"}
+02:29:11 pulling 0s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:16 pulling 5s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:21 booting 10s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:26 booting 15s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:31 booting 20s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:36 booting 25s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:41 booting 30s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:46 booting 35s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:52 booting 40s alt=None lat=None lon=None agent=None trucks=None/None | 
+02:29:57 flying 45s alt=-0.02544894814491272 lat=14.0283444 lon=100.4364646 agent=arming trucks=0/3 | takeoff
+02:30:02 flying 50s alt=1.151328206062317 lat=14.028345 lon=100.436464 agent=arming trucks=0/3 | takeoff
+02:30:07 flying 55s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:12 flying 60s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:17 flying 65s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:22 flying 70s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:27 flying 75s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:32 flying 80s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:37 flying 85s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:42 flying 90s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:47 flying 96s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:52 flying 100s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:30:57 flying 106s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:31:02 flying 111s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:31:07 flying 116s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:31:12 flying 121s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:31:17 flying 126s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:31:22 flying 131s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+02:31:27 failed 136s alt=3.018557548522949 lat=14.0283442 lon=100.4364643 agent=arming trucks=0/3 | takeoff
+{"state": "failed", "failed_in": "flying", "reason": "arming_timeout", "detail": "stuck in arming for 90s"}
+{"ended_by": "error", "partial": true, "flight_s": 90.23, "distance_m": 0.3, "score": {"version": "v0", "score": 0.0, "recall": 0.0, "precision": 0.0, "trucks_found": 0, "trucks_total": 3}, "missing": []}
+total 1948
+drwxrwxr-x 2 innovation innovation    4096 Oct  6 02:31 .
+drwxrwxr-x 7 innovation innovation    4096 Oct  6 02:31 ..
+-rw-rw-r-- 1 innovation innovation     320 Oct  6 02:31 analysis.txt
+-rw-rw-r-- 1 innovation innovation       0 Oct  6 02:31 detections.jsonl
+-rw-rw-r-- 1 innovation innovation 1220035 Oct  6 02:31 detections.mp4
+-rw-rw-r-- 1 innovation innovation     696 Oct  6 02:31 events.jsonl
+-rw-rw-r-- 1 innovation innovation    1771 Oct  6 02:31 job.json
+-rw-rw-r-- 1 innovation innovation     539 Oct  6 02:31 meta.json
+-rw-rw-r-- 1 innovation innovation      61 Oct  6 02:31 panel.log
+-rw-rw-r-- 1 innovation innovation    1060 Oct  6 02:31 result.json
+-rw-rw-r-- 1 innovation innovation     250 Oct  6 02:31 score.json
+-rw-rw-r-- 1 innovation innovation  610616 Oct  6 02:31 telemetry.jsonl
+-rw-rw-r-- 1 innovation innovation  120616 Oct  6 02:31 track.jsonl

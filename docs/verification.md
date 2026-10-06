@@ -97,3 +97,20 @@
 | **kill ระหว่าง pull ทิ้ง image ไว้** · ต้นเหตุ: `docker pull` รันใน process ของเว็บ drone-sitl การยกเลิก request ของเราไม่หยุดมัน และ `stop-website.sh` ก็ไม่ปิด process ลูกนี้ | cleanup ของงานที่ pull ยังไม่จบ ส่ง SIGTERM ให้ `docker pull <ref>` (หาด้วย argv ตรงตัว ตาม PID ไม่ใช้ pattern) แล้วลบ tag `submission-<ชื่อ>-<เวลา>` ที่เกิดหลังเริ่ม pull และ ref ที่ไม่ได้มีอยู่ก่อน (`2f598f9`) | **ของจริง:** pull `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` (~3 GB, เพิ่มใน allowlist ชั่วคราวผ่าน env) · 8 s หลังเริ่มมี `docker pull` pid 864163 · kill → `killed / pulling` · หลังจากนั้นไม่มี `docker pull` ค้าง ไม่มี image/tag pytorch · log: `stopped the docker pull left running (pids [864163])` (`j-20261005-100420-3d2c`) · เปิด service กลับเป็น allowlist ปกติแล้ว (pytorch → 403) |
 | **`/ws` หลุดแล้วงานจบทันที** | ต่อใหม่ภายใน `RECONNECT_S` = 10 s โดยไม่ส่ง RUN ซ้ำ สถานะการติดตาม (เวลาบิน, arming, DONE) คงอยู่ · นับว่ากลับมาเมื่อได้ telemetry จริงเท่านั้น (กัน server ที่รับ connection แต่เงียบ) · บันทึก `ws_lost`/`ws_reconnected` ใน events.jsonl (`e57553b`) | เทสต์: หลุดแล้วต่อได้ → บินต่อจนจบ, RUN ครั้งเดียว · ต่อครั้งแรกไม่ติดแล้วลองใหม่ · ต่อไม่ได้ใน 10 s → `ws_lost` · (ทดสอบจริงทำได้ยากเพราะต้องตัด TCP socket กลางทางซึ่งต้องใช้สิทธิ์ root) |
 
+
+---
+
+# vendor drone-sitl: บินจริงบนสำเนา · 2026-10-06
+
+> **สรุป: ผ่าน** service รันจาก `vendor/drone-sitl` (`2945783` + patch 0001) และ `vendor/maps/nt-testgs` · ไม่มี process จาก `~/pai/drone-sitl` · รอบแรกถูกสคริปต์ของโปรเจกต์อื่นฆ่า Isaac กลางบิน (บันทึกไว้ด้านล่าง) จึงบินใหม่
+
+| รอบ | ผล |
+|---|---|
+| preflight | ทุกข้อ ok · `drone-sitl (vendored @ 2945783)` · `map … (SHA256SUMS ok)` (`docs/verification-vendor-preflight.log`) |
+| รอบ 0: registry `perkiepai/truck-detector:20260929-214240` | **ล้ม** `arming_timeout` (`j-20261006-022911-a24b`) score 0.0 0/3 · สาเหตุที่สอดคล้องกับหลักฐาน: `~/friend/scene/scenev2/ardu/run_ardu_isaac.sh` (บรรทัด 39–40 `kill -9` ทุก `isaacsim.exp.full.streaming.kit`) เริ่มทำงานกลางเที่ยวบิน · ยังไม่ได้พิสูจน์ตรงๆ · สำเนา vendor บูต โหลดแผนที่ ต่อ PX4 และ takeoff ได้ก่อนถูกฆ่า (`docs/verification-vendor-run0-killed*.{log,txt}`) |
+| รอบ 1: registry เดิม (บินใหม่ ตอนไม่มี sim อื่น) | `done` score **94.4** (3/3) · `j-20261006-075228-1529` (`docs/verification-vendor-run1.log`) · รอบเดิมก่อน vendor: 95.6 |
+| รอบ 2: bundle `truck-detector.tar` | `done` score **96.8** (3/3, recall 1.0, precision 0.938) · `j-20261006-080241-fbb3` (`docs/verification-vendor-bundle.log`) · รอบเดิมก่อน vendor: 97.6 |
+| process (ระหว่างรอบ 1) | Isaac kit รันด้วย `--exec …/vendor/drone-sitl/sim/bootstrap.py` · cwd ของ kit และ joystick-server = `vendor/drone-sitl` · process ที่มี `pai/drone-sitl/` ในคำสั่ง 0 ตัว · layer ใน `/proc/<pid>/maps` ทั้ง 3 อยู่ใน `vendor/maps/nt-testgs/` (`docs/verification-vendor-proc.txt`) |
+| หลังจบ | พอร์ต 8080/8090 ปิด · `/healthz` ready · `git status vendor/` ว่าง · `vendor/drone-sitl/logs/launch-sitl.console` อยู่ (ถูก ignore) |
+
+ข้อจำกัด: หลักฐาน process เก็บเฉพาะรอบ 1 (ไม่ได้เก็บซ้ำรอบ bundle) · ไฟล์ input ของรอบ bundle (`truck-detector.tar`) อ่านจาก `~/pai/drone-sitl/examples/` เป็นแค่ข้อมูลเข้า ไม่ใช่การพึ่ง checkout · สคริปต์เก็บหลักฐานรวมในแผนถูก hook เขียนทับ จึงรันทีละคำสั่งแทน ผลเหมือนกัน · ความต่างของ score จากรอบเดิม (−1.2 และ −0.8) ไม่ได้สืบหาสาเหตุ (เส้นทางบิน/ตรวจจับมีความสุ่ม)

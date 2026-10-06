@@ -1,0 +1,8 @@
+## bootstrap (ต้องมี: path ใน vendor)
+## อะไรจาก checkout เดิม (ต้องว่าง)
+rc=1
+## cwd ของ joystick-server (ต้องเป็น vendor/drone-sitl)
+/home/innovation/pai/flight-service/vendor/drone-sitl
+/home/innovation/pai/flight-service/vendor/drone-sitl
+## layer ที่ Isaac map ไว้ (ถ้ามี ต้องอยู่ใน vendor/maps)
+ugrep: warning: /proc//maps: No such file or directory
