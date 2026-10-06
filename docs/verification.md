@@ -114,3 +114,20 @@
 | หลังจบ | พอร์ต 8080/8090 ปิด · `/healthz` ready · `git status vendor/` ว่าง · `vendor/drone-sitl/logs/launch-sitl.console` อยู่ (ถูก ignore) |
 
 ข้อจำกัด: หลักฐาน process เก็บเฉพาะรอบ 1 (ไม่ได้เก็บซ้ำรอบ bundle) · ไฟล์ input ของรอบ bundle (`truck-detector.tar`) อ่านจาก `~/pai/drone-sitl/examples/` เป็นแค่ข้อมูลเข้า ไม่ใช่การพึ่ง checkout · สคริปต์เก็บหลักฐานรวมในแผนถูก hook เขียนทับ จึงรันทีละคำสั่งแทน ผลเหมือนกัน · ความต่างของ score จากรอบเดิม (−1.2 และ −0.8) ไม่ได้สืบหาสาเหตุ (เส้นทางบิน/ตรวจจับมีความสุ่ม)
+
+## Stream สด (SSE) + client `flight.py` · 2026-10-06
+
+> **สรุป: ผ่านทุกรอบ** · flight-service `feat/sse-client` @ `f85ef88` · ผู้เรียก: `scripts/flight.py` บนเครื่องเดียวกัน · log ดิบ: `docs/verification-sse-*`
+
+| รอบ | ทำอะไร | ผล |
+|---|---|---|
+| 1a | `flight.py run perkiepai/truck-detector:20260929-214240` แล้ว `SIGTERM` client หลังบิน 30 s | exit `3` · JSON `state: flying` · งานบน service ยัง `flying` หลัง client ตาย (`j-20261006-083909-c92b`) · log จบด้วย `interrupted. Job ... was NOT killed` + วิธี `watch` / `kill` |
+| 1b | `flight.py watch j-20261006-083909-c92b` ต่อจนจบ | exit `0` · `done` / `null` · score `97.0` · บิน `487.46` s · ไฟล์ `10` ตัว ตรงกับ `data/runs/` ทุกตัว (`cmp` same ครบ ไม่มี `.part`) · `not_downloaded: []` |
+| 1 | stream ทั้งสายหลังจบ | event `telemetry` `2426` ตัว = `telemetry.jsonl` `2426` บรรทัด · `Last-Event-ID: 100` → เริ่มที่ `id: 101` |
+| 2 | `flight.py run --file` ไฟล์ 2 GB (`truncate -s 2G`, ไม่เปิด sim) | exit `1` · `failed` / `archive_rejected` · ใช้เวลา `1.27` s · RAM สูงสุดของ client `26,920` kB (~27 MB) |
+
+**ตรวจหลังทุกรอบ:** `/healthz` = `{"ok":true,"ready":true,"phase":"idle","pending":0}` · sim ปิด (`:8080` → `000`) · `data/uploads/` ว่าง (0 ไฟล์)
+
+**ตัวอย่าง stream ดิบ:** `docs/verification-sse-stream-sample.txt` ขึ้นต้น `event: state` + `data: {"state":"flying",...}` ตามด้วย `id: 1` / `event: telemetry`
+
+**สิ่งที่พบ:** ไม่มีข้อที่ต่างจากที่คาด · งานบินจบ `done` (ต่างจากงานก่อนหน้าที่จบ `arming_timeout`: รอบนี้ไม่มีใครเปิด sim ทับ) · ไฟล์ทดสอบ 2 GB วางไว้ใน scratchpad ของ session แทน `/tmp` ตามแผน แล้วลบทิ้งหลังรัน · service ตัวจริงบน `:8095` ตอนนี้รันโค้ดของ `feat/sse-client`

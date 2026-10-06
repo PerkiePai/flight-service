@@ -1,0 +1,14 @@
+08:39:09 job j-20261006-083909-c92b accepted
+08:39:09 state pulling
+08:39:16 state booting
+08:39:49 state flying
+08:39:49 flying alt=0.0 lat=14.0283445 lon=100.4364646 mode=AUTO.LOITER agent=idle
+08:39:54 flying alt=0.0 lat=14.0283445 lon=100.4364647 mode=AUTO.TAKEOFF agent=arming
+08:39:59 flying alt=2.0 lat=14.0283449 lon=100.4364644 mode=AUTO.TAKEOFF agent=arming
+08:40:04 flying alt=4.4 lat=14.0283442 lon=100.4364649 mode=OFFBOARD agent=running
+08:40:09 flying alt=4.5 lat=14.0283441 lon=100.4364652 mode=OFFBOARD agent=running
+08:40:14 flying alt=7.0 lat=14.0283441 lon=100.4364651 mode=OFFBOARD agent=running
+08:40:19 flying alt=16.0 lat=14.0283439 lon=100.4364652 mode=OFFBOARD agent=running
+08:40:21 interrupted. Job j-20261006-083909-c92b was NOT killed and keeps running on the service.
+08:40:21   follow it again:  flight.py watch j-20261006-083909-c92b
+08:40:21   stop it:          flight.py kill j-20261006-083909-c92b

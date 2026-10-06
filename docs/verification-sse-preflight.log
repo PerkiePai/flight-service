@@ -1,0 +1,16 @@
+ok   token             RUNNER_TOKEN set
+ok   drone-sitl        /home/innovation/pai/flight-service/vendor/drone-sitl (vendored @ 2945783)
+ok   site              nt-testgs
+ok   map               /home/innovation/pai/flight-service/vendor/maps/nt-testgs (SHA256SUMS ok)
+ok   cesium            not needed: site nt-testgs is a map stage
+ok   isaac sim         /home/innovation/isaac-sim6/isaac-sim.streaming.sh
+ok   pegasus           /home/innovation/PegasusSimulator/extensions
+ok   px4 sitl          /home/innovation/PX4-Autopilot/build/px4_sitl_default/bin/px4
+ok   conda env         drone: fastapi uvicorn pydantic websockets pymavlink numpy PIL cv2
+ok   ffmpeg            /usr/bin/ffmpeg
+ok   docker            daemon reachable as this user
+ok   gpu runtime       /usr/bin/nvidia-container-runtime
+ok   competition-base  competition-base:latest present (bundle uploads build FROM it)
+ok   registry login    /home/innovation/.docker/config.json
+
+preflight: ready
