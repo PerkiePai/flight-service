@@ -1,4 +1,4 @@
-"""HTTP API (design 3): six endpoints, one job each. Bearer token on
+"""HTTP API (design 3): seven endpoints, one job each. Bearer token on
 everything but /healthz."""
 import asyncio
 import hmac
@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from . import policy, uploads
+from . import policy, stream, uploads
 from .config import GB
 from .jobs import FILES, TERMINAL
 
@@ -56,7 +56,7 @@ def create_app(settings, store, worker):
         yield
         task.cancel()
 
-    # The six endpoints of design 3 only: no unauthenticated /docs, /redoc, /openapi.json.
+    # The seven endpoints of design 3 only: no unauthenticated /docs, /redoc, /openapi.json.
     app = FastAPI(title="flight-service", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -194,5 +194,14 @@ def create_app(settings, store, worker):
                                  media_type=MEDIA.get(path.suffix, "application/octet-stream"),
                                  headers={"Content-Length": str(size),
                                           "Content-Disposition": f'attachment; filename="{name}"'})
+
+    @app.get("/jobs/{job_id}/stream", dependencies=[Depends(auth)])
+    def stream_job(job_id: str, request: Request):
+        """The flight as Server-Sent Events (design 3.1). 404 and 401 are
+        answered before the stream opens; Last-Event-ID resumes it."""
+        job = job_or_404(job_id)
+        skip = stream.last_event_id(request.headers.get("last-event-id"))
+        return StreamingResponse(stream.events(job, store.dir(job) / "telemetry.jsonl", skip),
+                                 media_type="text/event-stream", headers=stream.HEADERS)
 
     return app

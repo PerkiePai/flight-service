@@ -18,9 +18,9 @@
 | ④ | Worker + drone-sitl + Isaac Sim | `booting` (บูต sim, รอ PX4) → `flying` (RUN ผ่าน `/ws`, agent container บิน) |
 | ⑤ | จบงาน | **ทุกทางจบเข้า finalize ตัวเดียว** ได้แก่ จบเอง, ล้มทุกแบบ (เส้นประ), kill และ recover → cleanup → `done`/`failed`/`killed` |
 | ⑥ | data/runs/<id>/ | journal เขียนทันทีทุกเฟรม + ผลหลัง finalize · เก็บย้อนหลัง ≤ 10 GB |
-| ⑦ | ระบบคิวพี่ต้น · อ่านผล | poll สถานะ ดาวน์โหลดไฟล์ เห็น state จบแล้วส่งงานถัดไป |
+| ⑦ | ระบบคิวพี่ต้น · อ่านผล | ติดตามสดทาง stream หรือ poll สถานะ ดาวน์โหลดไฟล์ เห็น state จบแล้วส่งงานถัดไป |
 
-## 1. Endpoint (6 ตัว ตัวละหนึ่งหน้าที่)
+## 1. Endpoint (7 ตัว ตัวละหนึ่งหน้าที่)
 
 ทุกตัวยกเว้น `/healthz` ต้องมี header `Authorization: Bearer <RUNNER_TOKEN>`
 
@@ -30,6 +30,7 @@
 | `POST` | `/jobs` | **เริ่มงาน**: JSON = ชื่อ image บน registry · ไฟล์ = อัปโหลด image | `202 {"job_id", "state"}` |
 | `GET` | `/jobs` | ประวัติงาน 50 งานล่าสุด (สรุปสั้น) | `200 {"jobs": [...]}` |
 | `GET` | `/jobs/{id}` | สถานะ + ข้อมูลสด + ผลของงานเดียว | `200 {...}` |
+| `GET` | `/jobs/{id}/stream` | **ติดตามสด** (Server-Sent Events): state, telemetry ทุกบรรทัด, ผลตอนจบ | `200 text/event-stream` แล้วปิดสายหลัง `end` |
 | `POST` | `/jobs/{id}/kill` | หยุดงาน แล้วตอบด้วยข้อมูลที่เก็บได้ | `200` (หรือ `202` ถ้าเกิน 60 s) |
 | `GET` | `/jobs/{id}/files/{name}` | ดาวน์โหลดไฟล์ผล (journal โหลดได้ตั้งแต่ระหว่างบิน) | ไฟล์ |
 
@@ -46,6 +47,7 @@ curl -s -X POST $R/jobs -H "$H" -H 'Content-Type: application/json' \
 curl -s -X POST -T truck.tar "$R/jobs?kind=image&name=truck-detector" -H "$H"   # ส่งไฟล์ docker save
 curl -s -X POST -T bundle.tar "$R/jobs?kind=bundle&name=truck-detector" -H "$H" # ส่ง build bundle
 curl -s $R/jobs/<id> -H "$H"
+curl -sN $R/jobs/<id>/stream -H "$H"                              # ติดตามสด · ต่อใหม่: เพิ่ม -H 'Last-Event-ID: <เลขบรรทัดล่าสุดที่ได้>'
 curl -s -X POST $R/jobs/<id>/kill -H "$H"
 curl -s -o clip.mp4 $R/jobs/<id>/files/detections.mp4 -H "$H"
 ```
@@ -58,6 +60,34 @@ curl -s -o clip.mp4 $R/jobs/<id>/files/detections.mp4 -H "$H"
 | ระหว่างบิน | ข้อมูลทุกเฟรมจนถึงตอนนั้น | `files/telemetry.jsonl`, `events.jsonl`, `detections.jsonl` |
 | ตอนจบ (ทุกแบบรวม kill) | `result`: `ended_by`, `partial`, เวลาบิน, ระยะทาง, alt สูงสุด, score v0, ลิงก์ไฟล์ | `GET /jobs/{id}` |
 | ตอนจบ | `track.jsonl`, `panel.log`, `detections.mp4`, `meta.json`, `score.json`, `result.json`, `analysis.txt` | `files/{name}` |
+
+### ติดตามสด: `GET /jobs/{id}/stream`
+
+```
+event: state
+data: {"state":"flying","since":"2026-10-06T02:29:52+0700","reason":null}
+
+id: 1
+event: telemetry
+data: {"connected":true,"armed":true,"mode":"OFFBOARD","alt_m":20.1,"lat":14.0283442,"lon":100.4364643,"t":1791228638.13,"agent":{"state":"running"}}
+
+: ping
+
+event: end
+data: {"job_id":"j-...","state":"done","failed_in":null,"reason":null,"detail":"","result":{"ended_by":"agent","score":{"score":95.6},"files":{},"missing":[]}}
+```
+
+| event | ส่งเมื่อ | data |
+|---|---|---|
+| `state` | ตอนต่อเข้ามาหนึ่งครั้ง และทุกครั้งที่ state เปลี่ยน | `{"state","since","reason"}` |
+| `telemetry` | ทุกบรรทัดใหม่ของ `telemetry.jsonl` (5 Hz, ~1.3 KB) · `id` = เลขบรรทัด | บรรทัดนั้นทุกฟิลด์ (ตัวอย่างข้างบนย่อไว้) |
+| `end` | งานจบและส่ง telemetry ครบแล้ว → server ปิดสาย | `job_id`, `state`, `failed_in`, `reason`, `detail`, `result` (รูปเดียวกับใน `GET /jobs/{id}`) |
+
+- **สายขาด:** ต่อใหม่พร้อม `Last-Event-ID: <id ล่าสุดที่ได้ครบ>` จะได้ต่อจากบรรทัดนั้น ไม่หาย ไม่ซ้ำ · `state` ปัจจุบันถูกส่งก่อนเสมอ
+- **`: ping`** ทุก 15 s ตอนไม่มีข้อมูล (ก่อนบิน และช่วงเก็บกวาดหลังบิน) · เงียบเกิน ~45 s ให้ถือว่าสายตายแล้วต่อใหม่
+- ต่อเข้ามาหลังงานจบก็ได้: ได้ `state` → telemetry ทั้งหมด → `end`
+- log ของ agent และ detections ไม่อยู่ใน stream: ดูที่ `log_tail` ของ `GET /jobs/{id}` และ `files/events.jsonl`, `files/detections.jsonl`
+- client สำเร็จรูปที่ทำทั้งหมดนี้ให้: `scripts/flight.py` (ดู README)
 
 ### HTTP status ที่ต้องรับมือ
 

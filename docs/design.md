@@ -47,7 +47,7 @@ curl POST /jobs ──► (ช่องรอเต็ม → 409) ──► [qu
 
 ---
 
-## 3. API (ฉบับรวม 2026-10-05 · 6 endpoint, ตัวละหนึ่งหน้าที่ ไม่ซ้ำกัน)
+## 3. API (ฉบับรวม 2026-10-05 · 7 endpoint, ตัวละหนึ่งหน้าที่ ไม่ซ้ำกัน · เพิ่ม stream 2026-10-06)
 
 ทุก endpoint ยกเว้น `/healthz` ต้องมี `Authorization: Bearer <RUNNER_TOKEN>`
 
@@ -56,6 +56,7 @@ curl POST /jobs ──► (ช่องรอเต็ม → 409) ──► [qu
 | `POST` | `/jobs` | **สร้างงาน** ส่งมาเป็น JSON = ชื่อ image บน registry · ส่งมาเป็นไฟล์ = อัปโหลด image (หัวข้อ 12) | ไม่มี `/jobs/upload` แยก: "สร้างงาน" มีทางเดียว ต่างกันแค่ `Content-Type` |
 | `GET` | `/jobs` | **ประวัติงาน** ล่าสุด 50 งาน (สรุปสั้น: id, state, image, เวลา, reason) | ไม่มีรายละเอียด telemetry/result (อยู่ใน `GET /jobs/{id}`) |
 | `GET` | `/jobs/{id}` | **สถานะ + ข้อมูลสด + ผล** ของงานเดียว | ไม่มีเนื้อไฟล์ (ให้ลิงก์ใน `result.files`) |
+| `GET` | `/jobs/{id}/stream` | **ติดตามสด** เป็น Server-Sent Events: state, telemetry ทุกบรรทัด, ผลตอนจบ (หัวข้อ 3.1) | ไม่ส่ง log ของ agent หรือ detections (อยู่ใน `GET /jobs/{id}` และ `/files/*`) |
 | `POST` | `/jobs/{id}/kill` | **หยุดงานที่กำลังทำ** แล้วตอบด้วยผลที่เก็บได้ (หัวข้อ 13.5) | ไม่มี `/cancel` หรือ `/jobs/current/kill` ซ้ำ ให้หา id จาก `GET /jobs` |
 | `GET` | `/jobs/{id}/files/{name}` | **ดาวน์โหลดไฟล์** ของงาน (ทั้งระหว่างบินและหลังจบ) | ไม่ list ไฟล์ (list อยู่ใน `result.files`) |
 | `GET` | `/healthz` | **พร้อมรับงานไหม** `{"ok":true,"ready":true,"phase":"idle","pending":0}` ไม่ต้องใช้ token (ระบบคิวของพี่ต้นใช้ตัวนี้ตัดสินใจส่งงาน) | ไม่บอก id หรือรายละเอียดงาน (กันข้อมูลรั่วโดยไม่มี token) |
@@ -112,6 +113,22 @@ curl -s -o clip.mp4 $R/jobs/j-20261005-142233-a1b2/files/detections.mp4 -H "$H"
 
 ข้อผิดพลาดตอนสร้างงาน (ไม่สร้าง job): `401` token · `400` request ผิดรูปแบบ · `403` image ไม่อยู่ใน allowlist · `411` ไฟล์ไม่มี Content-Length · `413` ใหญ่เกิน · `415` Content-Type ไม่รองรับ · `409` ช่องรอเต็ม · `503` runner degraded · `507` ดิสก์ไม่พอ
 ข้อผิดพลาดอื่น: `404` ไม่มีงาน/ไฟล์ · `409` kill งานที่จบไปแล้ว
+
+### 3.1 Stream สด: `GET /jobs/{id}/stream` (เพิ่ม 2026-10-06)
+
+Server-Sent Events บน HTTP ธรรมดา · token เดียวกับ endpoint อื่น · `404` / `401` ตอบก่อนเปิดสาย · รายละเอียดและเหตุผล: `docs/superpowers/specs/2026-10-06-sse-client-design.md`
+
+| event | ส่งเมื่อ | data |
+|---|---|---|
+| `state` | ตอนต่อเข้ามาหนึ่งครั้ง และทุกครั้งที่ state เปลี่ยน | `{"state","since","reason"}` |
+| `telemetry` | มีบรรทัดใหม่ใน `telemetry.jsonl` (5 Hz) · มี `id` = เลขบรรทัด | บรรทัด JSON นั้น ทุกฟิลด์ |
+| `end` | state จบ และ telemetry ส่งครบแล้ว จากนั้น server ปิดสาย | `{"job_id","state","failed_in","reason","detail","result"}` |
+
+- ต่อใหม่พร้อม header `Last-Event-ID: n` → ได้บรรทัดที่ n+1 เป็นต้นไป ไม่หาย ไม่ซ้ำ (ค่าที่ไม่ใช่เลขบรรทัด = ส่งตั้งแต่ต้น)
+- ช่วงที่ไม่มีอะไรจะส่ง (pulling, booting, finalize, cleanup) มีบรรทัดคอมเมนต์ `: ping` ทุก 15 s
+- สถานะมาจาก job ในหน่วยความจำ ไม่ใช่ `events.jsonl` · state จบถูกตั้งหลัง cleanup (หัวข้อ 5) ดังนั้น `end` = journal ปิดแล้ว ผลพร้อม ส่งงานถัดไปได้
+- service restart กลางบิน: สายขาด ต่อใหม่ได้ `end` พร้อม `failed` / `runner_restarted`
+- ไม่ทำ: จำกัดจำนวนสายต่อ job · log ของ agent / detections ใน stream · ตัดฟิลด์ telemetry
 
 ---
 
@@ -211,6 +228,8 @@ POST /jobs → queued → pulling ─┬→ booting → flying → done
 ---
 
 ## 9. ข้อ d: วิธีส่งข้อมูลกลับ → **เลือก A + MP4 หลังจบ**
+
+> **2026-10-06:** เพิ่ม stream สดแบบ SSE (หัวข้อ 3.1) เป็นทางเสริมของ A · poll ยังใช้ได้เหมือนเดิม · ต่างจากทาง C ตรงที่เป็น HTTP ขาเดียว ไม่มีภาพสด และไม่ต้องเปิดพอร์ตเพิ่ม
 
 ### ข้อมูลอะไร ส่งตอนไหน
 

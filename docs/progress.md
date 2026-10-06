@@ -11,7 +11,7 @@
 | 5 | README | plan Task 14 | ✅ `README.md` (ทำตามจริง 1 รอบ) |
 | B | รับไฟล์ image ผ่าน curl (archive + bundle) | design 12 · plan B1–B4 | ✅ โค้ด + review (แก้ Critical 3 + Important 3 ใน `5d368b6`) · บินจริงทั้งสองแบบ `done` · 145 tests ผ่าน |
 | V | standalone (vendor drone-sitl) | แผน `docs/superpowers/plans/2026-10-06-vendor-drone-sitl.md` · `vendor/` · `scripts/preflight.sh` | ✅ โค้ด + เทสต์ 195 ข้อ · บินจริง 2 รอบผ่านบนสำเนา (94.4 / 96.8, 3/3) หลังรอบแรกถูก sim ของโปรเจกต์อื่นฆ่า · README หัวข้อ "ย้ายไปเครื่องใหม่" ✅ |
-| C | Stream สด (SSE) + client `flight.py` | spec `docs/superpowers/specs/2026-10-06-sse-client-design.md` · plan `docs/superpowers/plans/2026-10-06-sse-client.md` (Task 0–6) | 🟡 แผนอนุมัติแล้ว · กำลังทำ Task 1 |
+| C | Stream สด (SSE) + client `flight.py` | spec `docs/superpowers/specs/2026-10-06-sse-client-design.md` · plan `docs/superpowers/plans/2026-10-06-sse-client.md` (Task 0–6) | 🟡 server เสร็จ (Task 1–2 · 215 tests) · ⛔ รออนุมัติก่อน Task 3 |
 
 ## โครงโฟลเดอร์ (สร้างใน Task 1)
 
@@ -33,7 +33,8 @@ flight-service/
 │   ├── runlog.py · finalize.py · retention.py
 │   ├── uploads.py · archive.py      (ส่วน B)
 │   ├── worker.py             คิว + pipeline + kill + recover
-│   └── app.py                HTTP API 6 endpoint + token
+│   ├── stream.py             GET /jobs/{id}/stream (SSE)
+│   └── app.py                HTTP API 7 endpoint + token
 ├── scripts/                  run-service.sh · stop-service.sh · mock-caller.sh
 ├── tests/                    fakes.py + test_<module>.py (ไม่เปิด sim)
 ├── docs/                     design · plan · progress · drone-sitl-changes · verification

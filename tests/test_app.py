@@ -1,10 +1,14 @@
 import asyncio
+import json
+import threading
+import urllib.request
 
-from conftest import http
+from conftest import http, sse_events
 
+from flight_service import stream
 from flight_service.app import create_app
 from flight_service.config import Settings
-from flight_service.jobs import KILLED, QUEUED, JobStore
+from flight_service.jobs import DONE, FLYING, KILLED, QUEUED, JobStore
 
 TOKEN = "k" * 40
 
@@ -180,3 +184,112 @@ def test_upload_rejections(tmp_path, serve):
 def test_upload_needs_disk(tmp_path, serve):
     url, _, _ = make(tmp_path, serve, min_free_gb=10 ** 6)
     assert upload(url, b"x" * 10)[0] == 507
+
+
+# --- GET /jobs/{id}/stream (design 3.1) --------------------------------------
+
+RESULT = {"ended_by": "agent", "partial": False, "score": {"score": 95.6}, "files": {}, "missing": []}
+
+
+def flown(store, lines=3):
+    """A job that flew and ended, as the worker leaves it."""
+    job = store.new("perkiepai/x:1", 600)
+    (store.dir(job) / "telemetry.jsonl").write_text(
+        "".join(json.dumps({"t": i, "alt_m": 10.0 + i}) + "\n" for i in range(1, lines + 1)))
+    job.result = RESULT
+    store.end(job, DONE)
+    return job
+
+
+def open_stream(url, jid, last_id=None, token=TOKEN):
+    req = urllib.request.Request(f"{url}/jobs/{jid}/stream")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    if last_id is not None:
+        req.add_header("Last-Event-ID", str(last_id))
+    return urllib.request.urlopen(req, timeout=10)
+
+
+def next_event(r):
+    """The next (event, id, data) of an open stream, keepalives skipped."""
+    block = b""
+    while True:
+        line = r.readline()
+        assert line, "the stream closed"
+        block += line
+        if line == b"\n":
+            got = [e for e in sse_events(block) if e[0] != "ping"]
+            if got:
+                return got[0]
+            block = b""
+
+
+def test_stream_needs_the_token_and_a_job(tmp_path, serve):
+    url, store, _ = make(tmp_path, serve)
+    jid = flown(store).id
+    assert http("GET", f"{url}/jobs/{jid}/stream")[0] == 401
+    assert http("GET", f"{url}/jobs/{jid}/stream", token="wrong" * 10)[0] == 401
+    assert http("GET", f"{url}/jobs/nope/stream", TOKEN) == (404, {"detail": "no such job"})
+    assert http("POST", f"{url}/jobs/{jid}/stream", TOKEN)[0] == 405
+
+
+def test_stream_of_a_finished_job_replays_it_and_closes(tmp_path, serve):
+    url, store, _ = make(tmp_path, serve)
+    jid = flown(store).id
+    with open_stream(url, jid) as r:
+        assert r.status == 200
+        assert r.headers["Content-Type"].startswith("text/event-stream")
+        assert r.headers["Cache-Control"] == "no-cache" and r.headers["X-Accel-Buffering"] == "no"
+        got = sse_events(r.read())                              # returns: the service closed the line
+    assert [(e, i) for e, i, _ in got] == [("state", None), ("telemetry", 1), ("telemetry", 2),
+                                          ("telemetry", 3), ("end", None)]
+    assert got[0][2]["state"] == "done" and got[1][2] == {"t": 1, "alt_m": 11.0}
+    assert got[-1][2] == {"job_id": jid, "state": "done", "failed_in": None, "reason": None,
+                          "detail": "", "result": RESULT}
+
+
+def test_stream_resumes_after_last_event_id(tmp_path, serve):
+    url, store, _ = make(tmp_path, serve)
+    jid = flown(store).id
+
+    def lines(last_id):
+        with open_stream(url, jid, last_id) as r:
+            return [i for e, i, _ in sse_events(r.read()) if e == "telemetry"]
+
+    assert lines(2) == [3] and lines(3) == [] and lines(0) == [1, 2, 3]
+    assert lines("abc") == [1, 2, 3] and lines(-5) == [1, 2, 3]    # not a line number: from the start
+
+
+def test_stream_follows_a_job_while_it_runs(tmp_path, serve):
+    url, store, _ = make(tmp_path, serve)
+    jid = submit(url)[1]["job_id"]
+    job = store.get(jid)
+    with open_stream(url, jid) as r:
+        assert next_event(r)[::2] == ("state", {"state": "queued", "since": job.summary()["state_since"],
+                                                "reason": None})
+        store.set_state(job, FLYING)
+        assert next_event(r)[2]["state"] == "flying"
+        with open(store.dir(job) / "telemetry.jsonl", "a") as f:
+            f.write('{"t": 1}\n{"t": 2')                        # the second line is still being written
+            f.flush()
+            assert next_event(r) == ("telemetry", 1, {"t": 1})
+            f.write('}\n')
+        assert next_event(r) == ("telemetry", 2, {"t": 2})
+        store.end(job, KILLED, "killed", "killed while flying")
+        assert next_event(r)[2] == {"state": "killed", "since": job.summary()["state_since"],
+                                    "reason": "killed"}
+        event, _, data = next_event(r)
+        assert event == "end" and (data["state"], data["failed_in"], data["result"]) == ("killed", "flying", None)
+        assert r.read() == b""                                  # nothing after end
+
+
+def test_stream_stops_reading_when_the_client_goes_away(tmp_path, serve, monkeypatch):
+    closed = threading.Event()
+    close = stream.Tail.close
+    monkeypatch.setattr(stream.Tail, "close", lambda self: (close(self), closed.set()))
+    url, _, _ = make(tmp_path, serve)
+    jid = submit(url)[1]["job_id"]                              # queued for ever: the stream never ends
+    r = open_stream(url, jid)
+    assert next_event(r)[0] == "state"
+    r.close()
+    assert closed.wait(5), "the journal stayed open after the client left"
