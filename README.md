@@ -72,6 +72,7 @@ export R=http://127.0.0.1:8095 H="Authorization: Bearer $RUNNER_TOKEN"
 | `POST` | `/jobs` | เริ่มงาน |
 | `GET` | `/jobs` | ประวัติงาน 50 งานล่าสุด |
 | `GET` | `/jobs/{id}` | สถานะ + ข้อมูลสด + ผล |
+| `GET` | `/jobs/{id}/stream` | ติดตามสด (Server-Sent Events) |
 | `POST` | `/jobs/{id}/kill` | หยุดงาน แล้วตอบด้วยข้อมูลที่เก็บได้ |
 | `GET` | `/jobs/{id}/files/{name}` | ดาวน์โหลดไฟล์ผล |
 
@@ -86,6 +87,7 @@ curl -s -X POST $R/jobs -H "$H" -H 'Content-Type: application/json' \
 # 503 {"detail":"degraded"}                                      ต้องมีคนแก้ (ดูหัวข้อแก้ปัญหา)
 
 curl -s $R/jobs/j-20261005-033950-b5fa -H "$H"                  # poll ทุก 1–5 s
+curl -sN $R/jobs/j-20261005-033950-b5fa/stream -H "$H"          # หรือติดตามสด: event state / telemetry / end (docs/api.md)
 curl -s -X POST $R/jobs/j-20261005-033950-b5fa/kill -H "$H"     # 200 = จบแล้วพร้อมผล · 202 = ยังเก็บกวาดอยู่ ให้ poll ต่อ
 curl -s -o clip.mp4 $R/jobs/j-20261005-033950-b5fa/files/detections.mp4 -H "$H"
 ```
@@ -105,7 +107,33 @@ curl -s -X POST -T bundle.tar -H "$H" "$R/jobs?kind=bundle&name=my-agent"
 
 ไม่ผ่าน: `409` ช่องรอเต็ม (ไม่รับไฟล์) · `411` ไม่มี Content-Length · `413` ใหญ่เกิน · `507` ดิสก์ไม่พอ · `408` ไม่มีข้อมูลเข้ามา 60 s · ไฟล์ผิดรูปแบบ/ชื่อชน/มี link → งาน `failed` ด้วย `archive_rejected`
 
-ทดลองครบวงจรด้วยสคริปต์ที่ทำตัวเป็นผู้เรียก: `./scripts/mock-caller.sh <image> [flight_timeout_s]` (ผลอยู่ใน `mock-out/<job_id>/` · `KILL_AFTER_S=90` = kill หลังบิน 90 s)
+### client สำเร็จรูป: `scripts/flight.py`
+
+ไฟล์เดียว ใช้แค่ Python 3.8+ (ไม่ต้องติดตั้งอะไร) copy ไปเครื่องผู้เรียกได้เลย · ส่งงาน → ตามสดทาง stream → ดึงไฟล์ผล → บอกผลด้วย exit code
+
+```bash
+export FLIGHT_URL=http://127.0.0.1:8095 RUNNER_TOKEN=<token ใน .env ของ service>
+
+scripts/flight.py health                                   # {"ok": true, "ready": true, ...}  exit 0 = ส่งงานได้
+scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600 --out results
+scripts/flight.py run --file agent.tar --kind image --name my-agent      # ส่งไฟล์แทนชื่อ image (bundle: --kind bundle)
+scripts/flight.py watch j-20261005-033950-b5fa --out results             # กลับมาตามงานเดิม เช่นหลัง client ถูกปิด
+scripts/flight.py kill j-20261005-033950-b5fa
+```
+
+| exit code ของ `run` / `watch` | ความหมาย |
+|---|---|
+| `0` | งานจบ `done` และไฟล์ผลอยู่ครบใน `<out>/<job_id>/` |
+| `1` | งานจบ `failed` หรือ `killed` (ไฟล์เท่าที่มีอยู่ในโฟลเดอร์เดียวกัน) |
+| `2` | ติดต่อ service ไม่ได้ / service ไม่รับงาน (ไม่ ready เกิน `--wait`, degraded, 4xx) / ดึงไฟล์ผลไม่ครบ |
+| `3` | client ถูกขัดจังหวะ (Ctrl-C, SIGTERM) · **งานไม่ถูก kill** ยังรันต่อบน service ใช้ `watch` กลับมาตาม หรือ `kill` ถ้าจะหยุด |
+
+- ความคืบหน้าพิมพ์ทาง stderr · stdout มีบรรทัดเดียวเป็น JSON ให้โปรแกรมอ่าน: `{"job_id", "state", "reason", "score", "out_dir", "not_downloaded"}` (พิมพ์ทุกครั้งที่ได้ `job_id` แล้ว รวมตอน exit 2 และ 3)
+- `run` รอ `ready` ให้เอง (default 60 s ปรับด้วย `--wait`) · คิวจริงยังเป็นของผู้เรียก
+- สายขาด: ต่อใหม่เองจากบรรทัดล่าสุดที่ได้ · ไม่ได้ stream เกิน 60 s หรือ service รุ่นเก่า: เปลี่ยนไป poll เอง
+- ไฟล์ผล: `<out>/<job_id>/job.json` + ทุกไฟล์ในหัวข้อ "ผลที่ได้" ด้านล่าง
+
+`scripts/mock-caller.sh` (สคริปต์ทดสอบรุ่นแรก ใช้ poll) ยังอยู่: `./scripts/mock-caller.sh <image> [flight_timeout_s]` ผลอยู่ใน `mock-out/<job_id>/`
 
 ### state ของงาน
 
