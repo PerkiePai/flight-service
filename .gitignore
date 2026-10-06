@@ -2,6 +2,7 @@ data/
 logs/
 run/
 mock-out/
+flight-out/
 .env
 __pycache__/
 .superpowers/

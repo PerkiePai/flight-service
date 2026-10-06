@@ -268,9 +268,220 @@ def cmd_kill(api, args):
     return EXIT_OK
 
 
+# -- run / watch --------------------------------------------------------------
+
+class Progress:
+    """What the flight looks like on stderr: one line per state change and
+    one position line every SHOW_EVERY_S. Remembers the last state seen."""
+
+    def __init__(self):
+        self.state, self._shown = None, None
+
+    def on_state(self, state, reason=None):
+        if state != self.state:
+            self.state = state
+            say(f"state {state}" + (f" ({reason})" if reason else ""))
+
+    def on_telemetry(self, t):
+        now = time.monotonic()
+        if self._shown is not None and now - self._shown < SHOW_EVERY_S:
+            return
+        self._shown = now
+        agent = t.get("agent_state") or (t.get("agent") or {}).get("state")
+        alt = t.get("alt_m")
+        alt = round(alt, 1) if isinstance(alt, (int, float)) else alt
+        say(f"{self.state} alt={alt} lat={t.get('lat')} lon={t.get('lon')} "
+            f"mode={t.get('mode')} agent={agent}")
+
+
+def wait_ready(api, deadline, waited):
+    """Return once /healthz says ready. Degraded: stop now, waiting cannot
+    fix it. Still busy at `deadline`: stop."""
+    told = False
+    while True:
+        status, health = api.json("GET", "/healthz")
+        if status != 200:
+            raise Stop(explain(status, health))
+        if health.get("ok") is False:
+            raise Stop(f"service degraded (phase {health.get('phase')}): someone has to fix "
+                       "the machine first (the service README says how)")
+        if health.get("ready"):
+            return
+        if time.monotonic() >= deadline:
+            raise Stop(f"service still busy after {waited:g}s (phase {health.get('phase')}, "
+                       f"pending {health.get('pending')}): try again later or raise --wait")
+        if not told:
+            say(f"service busy (phase {health.get('phase')}, pending {health.get('pending')}); waiting")
+            told = True
+        sleep(READY_POLL_S)
+
+
+def submit(api, args):
+    """(status, body) of POST /jobs for an image name or a file."""
+    if args.file:
+        query = {"kind": args.kind, "name": args.name}
+        if args.timeout is not None:
+            query["flight_timeout_s"] = args.timeout
+        say(f"uploading {args.file} ({os.path.getsize(args.file)} bytes)")
+        return api.upload(args.file, urllib.parse.urlencode(query))
+    body = {"image": args.image}
+    if args.timeout is not None:
+        body["flight_timeout_s"] = args.timeout
+    return api.json("POST", "/jobs", body)
+
+
+def follow(api, job_id, progress):
+    """True once the stream delivered the job's `end`. False when there is
+    no stream to be had (an older service, events this client cannot read,
+    nothing for STREAM_GIVE_UP_S): the caller polls instead. A broken line
+    is reconnected from the last telemetry line that arrived whole."""
+    last_id, backoff, down_since = 0, BACKOFF_S, None
+    while True:
+        try:
+            for event, data, eid in api.stream(job_id, last_id):
+                backoff, down_since = BACKOFF_S, None
+                data = json.loads(data)
+                if event == "telemetry":
+                    last_id = int(eid)
+                    progress.on_telemetry(data)
+                elif event == "state":
+                    progress.on_state(data.get("state"), data.get("reason"))
+                elif event == "end":
+                    progress.on_state(data.get("state"), data.get("reason"))
+                    return True
+            why = "the service closed the stream"
+        except HttpError as e:
+            if e.status == 401:
+                raise Stop(str(e))
+            if e.status in (404, 405, 501):         # no such endpoint, or no such job:
+                return False                        # the poll's own answer tells which
+            why = str(e)
+        except Unreachable as e:
+            why = str(e)
+        except (ValueError, TypeError) as e:        # an event this client cannot read:
+            say(f"unreadable stream event ({e})")   # reconnecting would only bring it again
+            return False
+        now = time.monotonic()
+        down_since = now if down_since is None else down_since
+        if now - down_since >= STREAM_GIVE_UP_S:
+            say(f"no stream for {STREAM_GIVE_UP_S:g}s ({why})")
+            return False
+        say(f"stream lost ({why}); reconnecting in {backoff:g}s after line {last_id}")
+        sleep(backoff)
+        backoff = min(backoff * 2, BACKOFF_MAX_S)
+
+
+def poll(api, job_id, progress):
+    """GET /jobs/{id} every POLL_S until the job ended."""
+    down_since = None
+    while True:
+        try:
+            status, job = api.json("GET", f"/jobs/{job_id}")
+            if status >= 500:                       # a proxy in front of a restarting service
+                raise Unreachable(explain(status, job))
+        except Unreachable as e:
+            now = time.monotonic()
+            down_since = now if down_since is None else down_since
+            if now - down_since >= POLL_GIVE_UP_S:
+                raise Stop(f"cannot reach the service for {POLL_GIVE_UP_S:g}s: {e}")
+            sleep(POLL_S)
+            continue
+        down_since = None
+        if status != 200:
+            raise Stop(explain(status, job))
+        progress.on_state(job.get("state"), job.get("reason"))
+        if job.get("state") in TERMINAL:
+            return
+        if job.get("telemetry"):
+            progress.on_telemetry(job["telemetry"])
+        sleep(POLL_S)
+
+
+def collect(api, job_id, out_root):
+    """The ended job's record and every file it lists, into <out>/<job_id>/.
+    (job, folder, names that could not be fetched)."""
+    status, job = api.json("GET", f"/jobs/{job_id}")
+    if status != 200:
+        raise Stop(explain(status, job))
+    out = os.path.join(out_root, job_id)
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "job.json.part"), "w", encoding="utf-8") as f:
+        json.dump(job, f, ensure_ascii=False, indent=1)
+    os.replace(os.path.join(out, "job.json.part"), os.path.join(out, "job.json"))
+    result = job.get("result") or {}
+    failed = []
+    for name, path in sorted((result.get("files") or {}).items()):
+        plain = name == os.path.basename(name) and name not in ("", ".", "..", "job.json")
+        if not plain or not api.download(path, os.path.join(out, name)):
+            say(f"could not download {name}")
+            failed.append(name)
+    for name in result.get("missing") or []:            # the service's own word: no guessing
+        say(f"missing {name}: the service has no such file for this job")
+    return job, out, failed
+
+
+def report(job_id, state, reason=None, score=None, out_dir=None, not_downloaded=()):
+    """The one stdout line a calling program reads."""
+    print(json.dumps({"job_id": job_id, "state": state, "reason": reason, "score": score,
+                      "out_dir": out_dir, "not_downloaded": list(not_downloaded)}), flush=True)
+
+
+def track(api, job_id, out_root):
+    """Follow a job to its end, fetch what it left, report. The exit code."""
+    progress = Progress()
+    try:
+        if not follow(api, job_id, progress):
+            say(f"polling every {POLL_S:g}s instead")
+            poll(api, job_id, progress)
+        job, out, failed = collect(api, job_id, out_root)
+    except KeyboardInterrupt:
+        say(f"interrupted. Job {job_id} was NOT killed and keeps running on the service.")
+        say(f"  follow it again:  flight.py watch {job_id}")
+        say(f"  stop it:          flight.py kill {job_id}")
+        report(job_id, progress.state)
+        return EXIT_INTERRUPTED
+    except (Stop, Unreachable) as e:
+        say(str(e) if isinstance(e, Stop) else f"cannot reach the service: {e}")
+        if progress.state is not None:              # the job is real: say how to get back to it
+            say(f"job {job_id} was last seen {progress.state}:  flight.py watch {job_id}")
+        report(job_id, progress.state)
+        return e.code if isinstance(e, Stop) else EXIT_UNREACHABLE
+    result = job.get("result") or {}
+    score = (result.get("score") or {}).get("score")
+    say(f"{job['state']}" + (f" ({job.get('reason')}: {job.get('detail')})" if job.get("reason") else "")
+        + f"; score {score}; flew {result.get('flight_s')}s; files in {out}")
+    report(job_id, job["state"], job.get("reason"), score, out, failed)
+    if failed:
+        return EXIT_UNREACHABLE
+    return EXIT_OK if job["state"] == "done" else EXIT_FAILED
+
+
+def cmd_run(api, args):
+    if args.file and not os.path.isfile(args.file):
+        raise Stop(f"no such file: {args.file}")
+    deadline = time.monotonic() + args.wait
+    while True:
+        wait_ready(api, deadline, args.wait)
+        status, body = submit(api, args)
+        if status == 202:
+            break
+        if status != 409:
+            raise Stop(explain(status, body))
+        if time.monotonic() >= deadline:
+            raise Stop(f"{explain(status, body)}; still so after {args.wait:g}s")
+        say("someone else took the pending slot first; waiting for ready again")
+        sleep(READY_POLL_S)
+    say(f"job {body['job_id']} accepted")
+    return track(api, body["job_id"], args.out)
+
+
+def cmd_watch(api, args):
+    return track(api, args.job_id, args.out)
+
+
 # -- command line -------------------------------------------------------------
 
-COMMANDS = {"health": cmd_health, "kill": cmd_kill}
+COMMANDS = {"health": cmd_health, "run": cmd_run, "watch": cmd_watch, "kill": cmd_kill}
 
 
 def parser():
@@ -282,6 +493,20 @@ def parser():
                    help="bearer token (default: $RUNNER_TOKEN)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("health", help="can the service take a job now?")
+    run = sub.add_parser("run", help="submit an image, follow the flight, fetch the results")
+    run.add_argument("image", nargs="?", help="image on a registry, e.g. perkiepai/truck-detector:TAG")
+    run.add_argument("--file", help="send this file instead of an image name")
+    run.add_argument("--kind", choices=("image", "bundle"),
+                     help="what --file is: a `docker save` archive or a build bundle")
+    run.add_argument("--name", help="name for the image made from --file")
+    run.add_argument("--timeout", type=int, metavar="S", help="flight time limit (flight_timeout_s)")
+    run.add_argument("--wait", type=float, default=60, metavar="S",
+                     help="how long to wait for the service to be ready (default 60)")
+    watch = sub.add_parser("watch", help="follow a job that is already there, fetch its results")
+    watch.add_argument("job_id")
+    for cmd in (run, watch):
+        cmd.add_argument("--out", default="flight-out", metavar="DIR",
+                         help="results go to DIR/<job_id>/ (default flight-out)")
     kill = sub.add_parser("kill", help="stop a job")
     kill.add_argument("job_id")
     return p
@@ -290,6 +515,11 @@ def parser():
 def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
+    if args.cmd == "run":
+        if bool(args.image) == bool(args.file):
+            p.error("run takes an IMAGE or --file, one of them")
+        if args.file and not (args.kind and args.name):
+            p.error("--file needs --kind image|bundle and --name")
     try:
         if args.cmd != "health" and not args.token:
             raise Stop("no token: export RUNNER_TOKEN=... (the service's .env) or pass --token")
@@ -301,7 +531,7 @@ def main(argv=None):
         say(f"cannot reach the service: {e}")
         return EXIT_UNREACHABLE
     except KeyboardInterrupt:
-        say("interrupted")
+        say("interrupted before a job was accepted (if the service did take one, it is in GET /jobs)")
         return EXIT_INTERRUPTED
 
 
