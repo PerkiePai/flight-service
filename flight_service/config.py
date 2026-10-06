@@ -17,9 +17,10 @@ HERE = Path(__file__).resolve().parent.parent
 def project_path(value):
     """A relative path is relative to this project, not to wherever the
     service was started: sim.py runs drone-sitl's scripts there and matches
-    its processes by it."""
+    its processes by it. `..` is collapsed the way the scripts' own
+    `cd .. && pwd` does (lexically, symlinks kept)."""
     p = Path(value).expanduser()
-    return p if p.is_absolute() else HERE / p
+    return Path(os.path.normpath(p if p.is_absolute() else HERE / p))
 
 
 @dataclass(frozen=True)

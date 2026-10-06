@@ -57,6 +57,8 @@ class Machine:
         for f in preflight.SITL_FILES:
             (self.sitl / f).parent.mkdir(parents=True, exist_ok=True)
             (self.sitl / f).write_text("")
+            if f.endswith(".sh"):
+                (self.sitl / f).chmod(0o755)
         (self.sitl / "sim" / "sites.py").write_text(FAKE_SITES)
         (self.sitl / "VENDORED").write_text("source_commit=" + "a" * 40 + "\npatches=\n")
         self.map = root / "maps" / "m"
@@ -187,3 +189,12 @@ def test_a_short_token_fails(box):
 def test_the_vendored_copy_passes_the_drone_sitl_check():
     c = preflight.check_sitl(HERE / "vendor" / "drone-sitl")
     assert c.ok and "vendored @" in c.detail
+
+
+def test_scripts_that_lost_their_executable_bit_fail_with_the_chmod_line(box):
+    """A zip or a FAT stick drops the bit; the first job would die on PermissionError."""
+    for name in ("run-website.sh", "stop-website.sh", "launch-sitl.sh"):
+        (box.sitl / "sim" / name).chmod(0o644)
+    c = box.checks()["drone-sitl"]
+    assert not c.ok and "run-website.sh" in c.detail and "not executable" in c.detail
+    assert "chmod +x" in c.fix

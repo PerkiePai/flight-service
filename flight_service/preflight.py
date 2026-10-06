@@ -75,6 +75,11 @@ def check_sitl(sitl_dir):
     if missing:
         return Check("drone-sitl", False, f"{sitl_dir}: missing {', '.join(missing)}",
                      "DRONE_SITL_DIR=vendor/drone-sitl (the copy in this repo) or a full drone-sitl checkout")
+    scripts = ("sim/run-website.sh", "sim/stop-website.sh", "sim/launch-sitl.sh")
+    plain = [f for f in scripts if not os.access(sitl_dir / f, os.X_OK)]
+    if plain:
+        return Check("drone-sitl", False, f"{sitl_dir}: not executable: {', '.join(plain)}",
+                     f"cd {sitl_dir} && chmod +x {' '.join(plain)}  (a zip or FAT copy drops the bit)")
     origin = "checkout"
     rec = sitl_dir / "VENDORED"
     if rec.is_file():

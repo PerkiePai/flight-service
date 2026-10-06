@@ -55,3 +55,11 @@ def test_drone_sitl_dir_expands_home(monkeypatch):
     monkeypatch.setenv("HOME", "/h")
     s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": "~/pai/drone-sitl"})
     assert s.drone_sitl_dir == Path("/h/pai/drone-sitl")
+
+
+@pytest.mark.parametrize("value", ["../drone-sitl", "vendor/../vendor/drone-sitl", "/tmp/x/../drone-sitl"])
+def test_drone_sitl_dir_has_no_dotdot(value):
+    """The scripts work out their own dir with `cd .. && pwd`, so sim.py's
+    pgrep for <dir>/sim/bootstrap.py only matches a collapsed path."""
+    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": value})
+    assert ".." not in s.drone_sitl_dir.parts
