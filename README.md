@@ -1,6 +1,6 @@
 # flight-service
 
-รับ docker image ของผู้แข่ง (ชื่อบน registry หรือไฟล์ `docker save` / build bundle) ด้วย curl ครั้งเดียว → บินใน sim (Isaac Sim + PX4 ผ่าน `~/pai/drone-sitl`) อัตโนมัติ → คืนสถานะ ข้อมูลการบิน คลิป MP4 และ detection score
+รับ docker image ของผู้แข่ง (ชื่อบน registry หรือไฟล์ `docker save` / build bundle) ด้วย curl ครั้งเดียว → บินใน sim (Isaac Sim + PX4 ผ่านสำเนา drone-sitl ใน `vendor/drone-sitl`) อัตโนมัติ → คืนสถานะ ข้อมูลการบิน คลิป MP4 และ detection score
 ทำทีละ 1 งาน (+ ช่องรอ 1 งาน) · คิวหลักอยู่ที่ระบบของผู้เรียก · ทุกข้อมูลเขียนเป็น journal ทันทีที่ได้ จบทางไหน (รวม kill) ก็ได้ผลรูปแบบเดียว
 ทุกงานบูต sim ใหม่และปิดเมื่อจบ ลบ image/container ที่งานนำเข้ามา แต่เก็บข้อมูลไว้ดูย้อนหลัง (≤ 10 GB)
 
@@ -8,7 +8,7 @@
 
 ## ติดตั้ง (ครั้งแรก)
 
-ต้องมี: conda env `drone` (FastAPI, uvicorn, websockets — env เดียวกับ drone-sitl) · Docker · `~/pai/drone-sitl` ที่รัน `sim/run-website.sh` ได้
+ต้องมี: conda env `drone` (`requirements-drone.txt`) · Docker + nvidia-container-toolkit · Isaac Sim 6 · PegasusSimulator + PX4-Autopilot (build `px4_sitl_default`) · ffmpeg — ตรวจทั้งหมดด้วย `./scripts/preflight.sh`
 
 ```bash
 cd ~/pai/flight-service
@@ -28,6 +28,27 @@ chmod 600 .env
 | `MAX_PENDING` | `1` | งานที่รอได้ต่อจากงานที่กำลังทำ |
 | `DEFAULT_FLIGHT_S` / `MAX_FLIGHT_S` | `600` / `900` | เวลาบินสูงสุดต่องาน |
 | `KEEP_IMAGE` | `0` | `1` = ไม่ลบ image หลังจบ (ใช้ตอน debug) |
+
+### ย้ายไปเครื่องใหม่
+
+repo นี้พก drone-sitl ส่วนที่ใช้มาด้วยแล้ว (`vendor/README.md`) · ที่ต้องมีบนเครื่องใหม่เอง:
+
+| ของ | ที่ default | ตั้งที่อื่นได้ด้วย (`.env`) |
+|---|---|---|
+| Isaac Sim 6 (~50 GB) | `~/isaac-sim6` | `ISAAC_DIR` |
+| PegasusSimulator | `~/PegasusSimulator/extensions` | `PEGASUS_EXTS` |
+| PX4-Autopilot build `px4_sitl_default` | ตาม `px4_dir` ใน `pegasus.simulator/config/configs.yaml` | แก้ใน configs.yaml |
+| conda env `drone` | `conda create -n drone python=3.11 && conda run -n drone pip install -r requirements-drone.txt` | `CONDA_ENV` |
+| Docker + nvidia-container-toolkit + ffmpeg | apt | — |
+| `docker login` (image `perkiepai/*` เป็น private) | `~/.docker/config.json` | — |
+| Cesium build + token | **ไม่ต้องใช้กับ site `nt-testgs`** (เป็น map stage) | `CESIUM_EXTS`, `vendor/drone-sitl/sim/secrets.env` |
+
+1. คัดลอก repo ไป (git clone หรือ copy ทั้งโฟลเดอร์)
+2. ไฟล์แผนที่ใหญ่ที่ไม่อยู่ใน git: เครื่องเดิม `tar -C vendor/maps -cf nt-testgs-map.tar nt-testgs` → เครื่องใหม่ `tar -C vendor/maps -xf nt-testgs-map.tar`
+3. image ฐานของ bundle: `cd vendor/drone-sitl && docker build -t competition-base:latest -f docker/competition-base/Dockerfile .`
+4. `cp .env.example .env` → ตั้ง `RUNNER_TOKEN` (และ path ข้างบนถ้าไม่ตรง default)
+5. `./scripts/preflight.sh` จนขึ้น `preflight: ready` (ทุกข้อที่ไม่ผ่านมีบรรทัด `fix:` บอกวิธี)
+6. `./scripts/run-service.sh` แล้วลองด้วย `./scripts/mock-caller.sh <image>`
 
 ## เปิด / ปิด
 
@@ -138,10 +159,10 @@ curl -s -X POST -T bundle.tar -H "$H" "$R/jobs?kind=bundle&name=my-agent"
 
 | อาการ | ทำ |
 |---|---|
-| งาน fail `sim_busy` | มี sim/เว็บค้าง: `cd ~/pai/drone-sitl && ./sim/stop-website.sh` แล้วส่งใหม่ |
-| `/healthz` → `ok:false, phase:degraded` (POST ได้ 503) | cleanup ปิด sim ไม่ได้: รัน `~/pai/drone-sitl/sim/stop-website.sh` เอง เช็ก `:8080`/`:8090` ว่าไม่ตอบ แล้ว `./scripts/stop-service.sh && ./scripts/run-service.sh` |
+| งาน fail `sim_busy` | มี sim/เว็บค้าง: `vendor/drone-sitl/sim/stop-website.sh` แล้วส่งใหม่ |
+| `/healthz` → `ok:false, phase:degraded` (POST ได้ 503) | cleanup ปิด sim ไม่ได้: รัน `vendor/drone-sitl/sim/stop-website.sh` เอง เช็ก `:8080`/`:8090` ว่าไม่ตอบ แล้ว `./scripts/stop-service.sh && ./scripts/run-service.sh` |
 | `run-service.sh` บอก not answering | ดู `logs/service.console` (ไม่มี `.env` / token สั้นเกิน / port ถูกใช้) |
-| งาน fail `sim_boot_timeout` / `px4_not_ready` | ดู `~/pai/drone-sitl/logs/launch-sitl.console` · GPU ถูกใช้อยู่ไหม (`nvidia-smi`) |
+| งาน fail `sim_boot_timeout` / `px4_not_ready` | ดู `vendor/drone-sitl/logs/launch-sitl.console` · GPU ถูกใช้อยู่ไหม (`nvidia-smi`) |
 
 ## เทสต์
 
