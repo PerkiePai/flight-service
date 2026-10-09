@@ -4,18 +4,15 @@ import pytest
 
 from flight_service.config import DEFAULT_ALLOWED, HERE, Settings
 
-TOKEN = "t" * 32
 
-
-def test_from_env_requires_a_long_token():
-    with pytest.raises(SystemExit):
-        Settings.from_env({"RUNNER_TOKEN": "short"})
-    with pytest.raises(SystemExit):
-        Settings.from_env({})
+def test_from_env_needs_no_token():
+    s = Settings.from_env({})
+    assert not hasattr(s, "token")
+    Settings.from_env({"RUNNER_TOKEN": "left-over-from-an-old-env"})      # ignored, not an error
 
 
 def test_from_env_defaults():
-    s = Settings.from_env({"RUNNER_TOKEN": TOKEN})
+    s = Settings.from_env({})
     assert (s.host, s.port) == ("127.0.0.1", 8095)
     assert s.allowed_images == (DEFAULT_ALLOWED,)
     assert s.runs_dir.parts[-2:] == ("data", "runs")
@@ -23,16 +20,16 @@ def test_from_env_defaults():
     assert (s.data_retention_gb, s.kill_wait_s, s.max_pending) == (10.0, 60.0, 1)
     assert (s.default_flight_s, s.max_flight_s) == (600, 900)
     assert "--cap-drop ALL" in s.docker_run_args and s.keep_image is False
+    assert "-e TZ=Asia/Bangkok" in s.docker_run_args
 
 
 def test_each_service_start_gets_its_own_drone_sitl_upload_token():
-    a, b = Settings.from_env({"RUNNER_TOKEN": TOKEN}), Settings.from_env({"RUNNER_TOKEN": TOKEN})
+    a, b = Settings.from_env({}), Settings.from_env({})
     assert len(a.sitl_upload_token) >= 32 and a.sitl_upload_token != b.sitl_upload_token
-    assert a.sitl_upload_token != a.token
 
 
 def test_from_env_overrides(tmp_path):
-    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": str(tmp_path),
+    s = Settings.from_env({"DRONE_SITL_DIR": str(tmp_path),
                            "ALLOWED_IMAGES": "^a$ ^b$", "KEEP_IMAGE": "1",
                            "ARMING_TIMEOUT_S": "5", "DATA_RETENTION_GB": "0"})
     assert s.drone_sitl_dir == tmp_path and s.allowed_images == ("^a$", "^b$")
@@ -40,20 +37,20 @@ def test_from_env_overrides(tmp_path):
 
 
 def test_drone_sitl_dir_defaults_to_the_vendored_copy():
-    s = Settings.from_env({"RUNNER_TOKEN": TOKEN})
+    s = Settings.from_env({})
     assert s.drone_sitl_dir == HERE / "vendor" / "drone-sitl"
     assert (s.drone_sitl_dir / "sim" / "run-website.sh").is_file()
 
 
 def test_relative_drone_sitl_dir_is_relative_to_the_project_not_the_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": "vendor/drone-sitl"})
+    s = Settings.from_env({"DRONE_SITL_DIR": "vendor/drone-sitl"})
     assert s.drone_sitl_dir == HERE / "vendor" / "drone-sitl" and s.drone_sitl_dir.is_absolute()
 
 
 def test_drone_sitl_dir_expands_home(monkeypatch):
     monkeypatch.setenv("HOME", "/h")
-    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": "~/pai/drone-sitl"})
+    s = Settings.from_env({"DRONE_SITL_DIR": "~/pai/drone-sitl"})
     assert s.drone_sitl_dir == Path("/h/pai/drone-sitl")
 
 
@@ -61,5 +58,5 @@ def test_drone_sitl_dir_expands_home(monkeypatch):
 def test_drone_sitl_dir_has_no_dotdot(value):
     """The scripts work out their own dir with `cd .. && pwd`, so sim.py's
     pgrep for <dir>/sim/bootstrap.py only matches a collapsed path."""
-    s = Settings.from_env({"RUNNER_TOKEN": TOKEN, "DRONE_SITL_DIR": value})
+    s = Settings.from_env({"DRONE_SITL_DIR": value})
     assert ".." not in s.drone_sitl_dir.parts

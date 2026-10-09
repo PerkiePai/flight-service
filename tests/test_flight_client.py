@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "flight.py"
-TOKEN = "k" * 40
 HANG = object()         # in a stream's chunk list: keep the line open and silent
 CUT = object()          # as a body: close the line without answering
 
@@ -128,9 +127,9 @@ def closed_port():
         return "http://127.0.0.1:%d" % s.getsockname()[1]
 
 
-def run(flight, capsys, url, *argv, token=TOKEN):
-    """(exit code, stdout lines, stderr) of `flight.py --url .. --token .. <argv>`."""
-    code = flight.main(["--url", url, "--token", token, *argv])
+def run(flight, capsys, url, *argv):
+    """(exit code, stdout lines, stderr) of `flight.py --url .. <argv>`."""
+    code = flight.main(["--url", url, *argv])
     out = capsys.readouterr()
     return code, out.out.splitlines(), out.err
 
@@ -161,26 +160,48 @@ def test_sse_events_reads_whole_events_only(flight):
 
 
 def test_health_exit_codes(flight, capsys, service):
-    assert run(flight, capsys, service({"GET /healthz": [(200, READY)]}).url, "health", token="") \
-        == (0, [json.dumps(READY)], "")                         # no token needed
+    assert run(flight, capsys, service({"GET /healthz": [(200, READY)]}).url, "health") \
+        == (0, [json.dumps(READY)], "")
     code, out, _ = run(flight, capsys, service({"GET /healthz": [(200, BUSY)]}).url, "health")
     assert (code, json.loads(out[0])["ready"]) == (1, False)
     code, out, err = run(flight, capsys, closed_port(), "health")
     assert (code, out) == (2, []) and "cannot reach the service" in err
 
 
-def test_everything_else_needs_a_token(flight, capsys, service):
-    svc = service({})
-    code, out, err = run(flight, capsys, svc.url, "kill", "j-1", token="")
-    assert (code, out) == (2, []) and "RUNNER_TOKEN" in err and svc.seen == []
+def test_the_token_option_is_gone(flight, capsys):
+    for argv in (["--token=x", "kill", "j-1"], ["--token", "x", "kill", "j-1"]):   # an old script's call
+        with pytest.raises(SystemExit) as e:
+            flight.main(["--url", closed_port(), *argv])
+        assert e.value.code == 2, argv
+    assert "unrecognized arguments: --token=x" in capsys.readouterr().err
 
 
-def test_url_and_token_come_from_the_environment(flight, capsys, service, monkeypatch):
+def test_url_comes_from_the_environment_and_no_authorization_is_sent(flight, capsys, service, monkeypatch):
     svc = service({"POST /jobs/j-1/kill": [(200, {"state": "killed", "reason": "killed"})]})
     monkeypatch.setenv("FLIGHT_URL", svc.url + "/")             # a trailing slash is harmless
-    monkeypatch.setenv("RUNNER_TOKEN", TOKEN)
     assert flight.main(["kill", "j-1"]) == 0
-    assert svc.seen[0][2]["authorization"] == f"Bearer {TOKEN}" and svc.calls() == ["POST /jobs/j-1/kill"]
+    assert "authorization" not in svc.seen[0][2] and svc.calls() == ["POST /jobs/j-1/kill"]
+
+
+def test_a_leftover_runner_token_variable_is_ignored(flight, capsys, service, monkeypatch):
+    svc = service({"POST /jobs/j-1/kill": [(200, {"state": "killed", "reason": "killed"})]})
+    monkeypatch.setenv("FLIGHT_URL", svc.url)
+    monkeypatch.setenv("RUNNER_TOKEN", "left-over-from-an-old-env")
+    assert flight.main(["kill", "j-1"]) == 0
+    assert "authorization" not in svc.seen[0][2]
+
+
+def test_kill_without_an_id_asks_the_service_to_pick_the_flying_job(flight, capsys, service):
+    svc = service({"POST /kill": [(200, {"job_id": "j-7", "state": "killed", "reason": "killed"}),
+                                  (202, {"job_id": "j-8", "state": "flying", "reason": None}),
+                                  (409, {"detail": "no job to kill"})]})
+    assert run(flight, capsys, svc.url, "kill") == (
+        0, [json.dumps({"job_id": "j-7", "state": "killed", "reason": "killed"})], "")
+    code, out, err = run(flight, capsys, svc.url, "kill")
+    assert (code, json.loads(out[0])["job_id"]) == (0, "j-8") and "flight.py watch j-8" in err
+    code, out, err = run(flight, capsys, svc.url, "kill")
+    assert (code, out) == (1, []) and "HTTP 409" in err and "no job to kill" in err
+    assert svc.calls() == ["POST /kill"] * 3
 
 
 def test_kill(flight, capsys, service):
@@ -195,8 +216,8 @@ def test_kill(flight, capsys, service):
     code, out, err = run(flight, capsys, svc.url, "kill", "j-3")
     assert (code, out) == (1, []) and "HTTP 409" in err and "nothing to kill" in err
     assert run(flight, capsys, svc.url, "kill", "j-4")[0] == 1                # 404: no such job
-    code, _, err = run(flight, capsys, svc.url, "kill", "j-5")
-    assert code == 2 and "HTTP 401 (token wrong or missing): missing or wrong bearer token" in err
+    code, _, err = run(flight, capsys, svc.url, "kill", "j-5")      # a 401 from a proxy in front, say
+    assert code == 2 and "HTTP 401: missing or wrong bearer token" in err
 
 
 def test_an_answer_that_is_not_json_is_still_reported(flight, capsys, service):
@@ -214,8 +235,7 @@ def test_a_line_cut_before_the_answer_is_unreachable_not_a_traceback(flight, cap
 # --- against the real app (uvicorn + create_app, the worker stubbed) --------------
 
 def real(tmp_path, serve, **settings):
-    from test_app import TOKEN as APP_TOKEN, make
-    assert APP_TOKEN == TOKEN
+    from test_app import make
     return make(tmp_path / "svc", serve, **settings)
 
 
@@ -223,7 +243,7 @@ def test_real_service_takes_an_upload(flight, tmp_path, serve):
     url, store, _ = real(tmp_path, serve, min_free_gb=0)
     archive = tmp_path / "agent.tar"
     archive.write_bytes(os.urandom(3_000_000))
-    status, body = flight.Api(url, TOKEN).upload(str(archive), "kind=image&name=truck")
+    status, body = flight.Api(url).upload(str(archive), "kind=image&name=truck")
     assert status == 202 and body["source"] == "upload"
     assert (tmp_path / "svc" / "uploads" / f"{body['job_id']}.tar").read_bytes() == archive.read_bytes()
 
@@ -239,7 +259,7 @@ def test_real_service_refuses_a_file_before_it_is_sent(flight, tmp_path, serve, 
     url, store, _ = real(tmp_path, serve, min_free_gb=0, max_upload_gb=1e-6)      # ~1 KB allowed
     archive = tmp_path / "agent.tar"
     archive.write_bytes(os.urandom(3_000_000))
-    api = flight.Api(url, TOKEN)
+    api = flight.Api(url)
     status, body = api.upload(str(archive), "kind=image&name=truck")
     assert status == 413 and "file over" in body["detail"]
     assert sum(sent) < 2000 and store.all() == []                    # headers only
@@ -313,7 +333,7 @@ def test_run_waits_submits_follows_and_fetches(flight, capsys, service, tmp_path
                            f"GET /jobs/{JOB}/files/detections.mp4", f"GET /jobs/{JOB}/files/result.json"]
     method, _, headers, body = svc.seen[4]
     assert json.loads(body) == {"image": "perkiepai/x:1", "flight_timeout_s": 300}
-    assert headers["authorization"] == f"Bearer {TOKEN}" and headers["content-type"] == "application/json"
+    assert "authorization" not in headers and headers["content-type"] == "application/json"
     assert json.loads(lines[-1]) == {"job_id": JOB, "state": "done", "reason": None, "score": 95.6,
                                      "out_dir": str(out / JOB), "not_downloaded": []}
     assert len(lines) == 1                                       # stdout is that one line
@@ -364,7 +384,7 @@ def test_a_slot_that_is_always_taken_ends_the_wait(flight, capsys, service):
     (403, {"detail": "image not in the allowlist"}, "HTTP 403: image not in the allowlist"),
     (400, {"detail": "flight_timeout_s must be 30..900"}, "HTTP 400: flight_timeout_s must be 30..900"),
     (503, {"detail": "degraded"}, "HTTP 503 (service degraded: someone has to fix the machine): degraded"),
-    (401, {"detail": "missing or wrong bearer token"}, "HTTP 401 (token wrong or missing)")])
+    (401, {"detail": "missing or wrong bearer token"}, "HTTP 401: missing or wrong bearer token")])
 def test_a_refused_job_shows_what_the_service_said(flight, capsys, service, status, body, says):
     svc = service(flown(**{"POST /jobs": [(status, body)]}))
     code, lines, err = run(flight, capsys, svc.url, "run", "perkiepai/x:1")
@@ -376,7 +396,7 @@ def test_run_needs_exactly_one_of_image_and_file(flight, capsys, tmp_path):
     for argv in (["run"], ["run", "perkiepai/x:1", "--file", "x.tar", "--kind", "image", "--name", "x"],
                  ["run", "--file", "x.tar"], ["run", "--file", "x.tar", "--kind", "zip", "--name", "x"]):
         with pytest.raises(SystemExit) as e:
-            flight.main(["--url", closed_port(), "--token", TOKEN, *argv])
+            flight.main(["--url", closed_port(), *argv])
         assert e.value.code == 2, argv
     capsys.readouterr()
     code, _, err = run(flight, capsys, closed_port(), "run", "--file", str(tmp_path / "nope.tar"),
@@ -499,7 +519,7 @@ def test_upload_sends_the_file_with_its_length(flight, capsys, service, tmp_path
     method, path, headers, body = svc.seen[1]
     assert (method, path) == ("POST", "/jobs?kind=image&name=truck&flight_timeout_s=120")
     assert headers["content-length"] == "300000" and headers["expect"] == "100-continue"
-    assert headers["authorization"] == f"Bearer {TOKEN}" and body == archive.read_bytes()
+    assert "authorization" not in headers and body == archive.read_bytes()
 
 
 def test_real_service_watch_replays_a_flown_job(flight, capsys, tmp_path, serve):
@@ -531,7 +551,7 @@ def test_real_service_watch_replays_a_flown_job(flight, capsys, tmp_path, serve)
 def spawn(svc, *argv, **env):
     return subprocess.Popen([sys.executable, str(SCRIPT), *argv], stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True,
-                            env={**os.environ, "FLIGHT_URL": svc.url, "RUNNER_TOKEN": TOKEN, **env})
+                            env={**os.environ, "FLIGHT_URL": svc.url, **env})
 
 
 @pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM])

@@ -64,12 +64,6 @@ def load_site(sitl_dir, name):
         sys.modules.pop(spec.name, None)
 
 
-def check_token(env):
-    ok = len(env.get("RUNNER_TOKEN", "")) >= 32
-    return Check("token", ok, "RUNNER_TOKEN set" if ok else "RUNNER_TOKEN missing or under 32 characters",
-                 "python3 -c 'import secrets;print(secrets.token_urlsafe(32))' -> RUNNER_TOKEN= in .env")
-
-
 def check_sitl(sitl_dir):
     missing = [f for f in SITL_FILES if not (sitl_dir / f).is_file()]
     if missing:
@@ -207,8 +201,8 @@ def check_registry_login(env, home):
 
 def run_checks(env, run=subprocess.run, which=shutil.which):
     home = Path(env.get("HOME") or Path.home())
-    s = Settings.from_env({**env, "RUNNER_TOKEN": "x" * 32})    # the token gets its own check
-    checks = [check_token(env), check_sitl(s.drone_sitl_dir)]
+    s = Settings.from_env(env)
+    checks = [check_sitl(s.drone_sitl_dir)]
     try:
         site = load_site(s.drone_sitl_dir, s.site)
     except Exception as e:                       # noqa: BLE001 -- any failure = no usable site

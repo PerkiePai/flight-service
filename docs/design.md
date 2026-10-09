@@ -24,6 +24,17 @@
 
 ## 2. Flow
 
+![flow ของหนึ่งงาน](diagrams/08-design-flow.png)
+
+ต้นฉบับ mermaid: [diagrams/08-design-flow.mmd](diagrams/08-design-flow.mmd) · แก้แล้วสร้างภาพใหม่ด้วย `diagrams/render.sh`
+
+- **เส้นทึบ** = ทางปกติ ขั้น 1 → 6 · **เส้นประ** = ทางที่ล้มหรือถูก kill (ป้ายบนเส้นคือ `reason`) ทุกเส้นเข้าขั้น 5 เพื่อเก็บผลเท่าที่มี แล้วจึง cleanup
+- ขั้น 5 เดิมชื่อ "collecting" (copy ไฟล์จาก drone-sitl) ตอนนี้เป็น **finalize** ที่สร้างผลจาก journal ตามหัวข้อ 13
+- "กับดัก N" อ้างถึงรายการกับดักในโจทย์ตั้งต้น: 1 = สั่ง RUN ก่อน PX4 พร้อม · 2 = ต้องเปิด `/ws` ค้างไว้ · 3 = โดรนต้องเริ่มจากแท่น · 5 = ห้าม `pkill -f` · 6 = ดิสก์เกือบเต็ม/ห้าม prune
+
+<details>
+<summary>ฉบับข้อความเดิม (ก่อนเปลี่ยนเป็นภาพ)</summary>
+
 ```
 curl POST /jobs ──► (ช่องรอเต็ม → 409) ──► [queued ≤ 1] ──► worker (ทีละงาน)
                                    │
@@ -41,15 +52,17 @@ curl POST /jobs ──► (ช่องรอเต็ม → 409) ──► [qu
                 → worker ว่าง รับงานถัดไป
 ```
 
+</details>
+
 **ทำไม pull ก่อนบูต sim:** pull image 12.5 GB อาจใช้เวลาเป็น 10 นาที ถ้าบูต sim ก่อน GPU จะถูกจองไว้ทั้งที่ไม่ได้ใช้ และ Isaac อาจ time out ระหว่างรอ `run-website.sh` ทำงานแบบ idempotent
 จึงเปิดเว็บอย่างเดียวก่อนได้ (`SKIP_SIM=1`) แล้วค่อยเรียกซ้ำให้บูต Isaac
 ⚠️ ต้องยืนยันในขั้นที่ 3 ว่า joystick-server ที่เปิดก่อน PX4 ยังจับลิงก์ MAVLink ได้ ถ้าไม่ได้ fallback คือ `stop-website` แล้ว `run-website` ใหม่หลัง pull เสร็จ
 
 ---
 
-## 3. API (ฉบับรวม 2026-10-05 · 7 endpoint, ตัวละหนึ่งหน้าที่ ไม่ซ้ำกัน · เพิ่ม stream 2026-10-06)
+## 3. API (ฉบับรวม 2026-10-05 · 8 endpoint, ตัวละหนึ่งหน้าที่ ไม่ซ้ำกัน · เพิ่ม stream 2026-10-06 · เพิ่ม `POST /kill` 2026-10-09)
 
-ทุก endpoint ยกเว้น `/healthz` ต้องมี `Authorization: Bearer <RUNNER_TOKEN>`
+ไม่มี login: ไม่ต้องส่ง header ใด ๆ (service bind `127.0.0.1` — ผู้เรียกเป็นคนใน)
 
 | method | path | หน้าที่เดียวของมัน | ไม่ทำอะไร (กันซ้ำ) |
 |---|---|---|---|
@@ -57,9 +70,10 @@ curl POST /jobs ──► (ช่องรอเต็ม → 409) ──► [qu
 | `GET` | `/jobs` | **ประวัติงาน** ล่าสุด 50 งาน (สรุปสั้น: id, state, image, เวลา, reason) | ไม่มีรายละเอียด telemetry/result (อยู่ใน `GET /jobs/{id}`) |
 | `GET` | `/jobs/{id}` | **สถานะ + ข้อมูลสด + ผล** ของงานเดียว | ไม่มีเนื้อไฟล์ (ให้ลิงก์ใน `result.files`) |
 | `GET` | `/jobs/{id}/stream` | **ติดตามสด** เป็น Server-Sent Events: state, telemetry ทุกบรรทัด, ผลตอนจบ (หัวข้อ 3.1) | ไม่ส่ง log ของ agent หรือ detections (อยู่ใน `GET /jobs/{id}` และ `/files/*`) |
-| `POST` | `/jobs/{id}/kill` | **หยุดงานที่กำลังทำ** แล้วตอบด้วยผลที่เก็บได้ (หัวข้อ 13.5) | ไม่มี `/cancel` หรือ `/jobs/current/kill` ซ้ำ ให้หา id จาก `GET /jobs` |
+| `POST` | `/jobs/{id}/kill` | **หยุดงานที่กำลังทำ** แล้วตอบด้วยผลที่เก็บได้ (หัวข้อ 13.5) | ไม่มี `/cancel` ซ้ำ · ไม่รู้ id ใช้ `POST /kill` ด้านล่าง |
+| `POST` | `/kill` | **หยุดงานโดยไม่ต้องระบุ id:** งานที่กำลังบิน ถ้าไม่มีก็งานที่รอคิวถัดไป ไม่มีเลย → `409 no job to kill` | ไม่หยุดทั้งคิว (งานที่รออาจเป็นของคนอื่น) |
 | `GET` | `/jobs/{id}/files/{name}` | **ดาวน์โหลดไฟล์** ของงาน (ทั้งระหว่างบินและหลังจบ) | ไม่ list ไฟล์ (list อยู่ใน `result.files`) |
-| `GET` | `/healthz` | **พร้อมรับงานไหม** `{"ok":true,"ready":true,"phase":"idle","pending":0}` ไม่ต้องใช้ token (ระบบคิวของพี่ต้นใช้ตัวนี้ตัดสินใจส่งงาน) | ไม่บอก id หรือรายละเอียดงาน (กันข้อมูลรั่วโดยไม่มี token) |
+| `GET` | `/healthz` | **พร้อมรับงานไหม** `{"ok":true,"ready":true,"phase":"idle","pending":0}` (ระบบคิวของพี่ต้นใช้ตัวนี้ตัดสินใจส่งงาน) | ไม่บอก id หรือรายละเอียดงาน |
 
 ไฟล์ที่ดาวน์โหลดได้ (หัวข้อ 13.4): `telemetry.jsonl`, `events.jsonl`, `detections.jsonl`, `track.jsonl`, `panel.log`, `detections.mp4`, `meta.json`, `score.json`, `result.json`, `analysis.txt`
 ระหว่างบิน journal (`telemetry.jsonl`, `events.jsonl`, `detections.jsonl`) โหลดได้ตลอด ไฟล์อื่นจะมีหลัง finalize
@@ -67,21 +81,21 @@ curl POST /jobs ──► (ช่องรอเต็ม → 409) ──► [qu
 ### ตัวอย่าง
 
 ```bash
-export R=http://127.0.0.1:8095  H="Authorization: Bearer $TOKEN"
+export R=http://127.0.0.1:8095
 
 # สร้างงานจาก registry
-curl -s -X POST $R/jobs -H "$H" -H 'Content-Type: application/json' \
+curl -s -X POST $R/jobs -H 'Content-Type: application/json' \
   -d '{"image": "perkiepai/truck-detector:20260929-214240", "flight_timeout_s": 600}'
 # → 202 {"job_id":"j-20261005-142233-a1b2","state":"queued","source":"registry"}
 # → 409 {"detail":"busy","current_job":"j-...","pending":["j-..."]}  ถ้าช่องรอเต็ม
 
 # สร้างงานจากไฟล์ (หัวข้อ 12): -T = stream ไฟล์ ไม่โหลดเข้า RAM
-curl -s -X POST -T truck.tar $R/'jobs?kind=image&name=truck-detector&flight_timeout_s=600' -H "$H"
+curl -s -X POST -T truck.tar $R/'jobs?kind=image&name=truck-detector&flight_timeout_s=600'
 
-curl -s $R/jobs -H "$H"                                     # รายการ
-curl -s $R/jobs/j-20261005-142233-a1b2 -H "$H"              # ติดตาม
-curl -s -X POST $R/jobs/j-20261005-142233-a1b2/kill -H "$H" # หยุด → ได้ผลที่เก็บมา
-curl -s -o clip.mp4 $R/jobs/j-20261005-142233-a1b2/files/detections.mp4 -H "$H"
+curl -s $R/jobs                                     # รายการ
+curl -s $R/jobs/j-20261005-142233-a1b2              # ติดตาม
+curl -s -X POST $R/jobs/j-20261005-142233-a1b2/kill # หยุด → ได้ผลที่เก็บมา
+curl -s -o clip.mp4 $R/jobs/j-20261005-142233-a1b2/files/detections.mp4
 ```
 
 `GET /jobs/{id}` ระหว่างบิน:
@@ -111,12 +125,12 @@ curl -s -o clip.mp4 $R/jobs/j-20261005-142233-a1b2/files/detections.mp4 -H "$H"
  "detail":"no 'Ready for takeoff' in launch-sitl.console after 180 s","result":{"ended_by":"error","partial":true,"...":"..."}}
 ```
 
-ข้อผิดพลาดตอนสร้างงาน (ไม่สร้าง job): `401` token · `400` request ผิดรูปแบบ · `403` image ไม่อยู่ใน allowlist · `411` ไฟล์ไม่มี Content-Length · `413` ใหญ่เกิน · `415` Content-Type ไม่รองรับ · `409` ช่องรอเต็ม · `503` runner degraded · `507` ดิสก์ไม่พอ
+ข้อผิดพลาดตอนสร้างงาน (ไม่สร้าง job): `400` request ผิดรูปแบบ · `403` image ไม่อยู่ใน allowlist · `411` ไฟล์ไม่มี Content-Length · `413` ใหญ่เกิน · `415` Content-Type ไม่รองรับ · `409` ช่องรอเต็ม · `503` runner degraded · `507` ดิสก์ไม่พอ
 ข้อผิดพลาดอื่น: `404` ไม่มีงาน/ไฟล์ · `409` kill งานที่จบไปแล้ว
 
 ### 3.1 Stream สด: `GET /jobs/{id}/stream` (เพิ่ม 2026-10-06)
 
-Server-Sent Events บน HTTP ธรรมดา · token เดียวกับ endpoint อื่น · `404` / `401` ตอบก่อนเปิดสาย · รายละเอียดและเหตุผล: `docs/superpowers/specs/2026-10-06-sse-client-design.md`
+Server-Sent Events บน HTTP ธรรมดา · `404` ตอบก่อนเปิดสาย · รายละเอียดและเหตุผล: `docs/superpowers/specs/2026-10-06-sse-client-design.md`
 
 | event | ส่งเมื่อ | data |
 |---|---|---|
@@ -210,7 +224,7 @@ POST /jobs → queued → pulling ─┬→ booting → flying → done
 
 | ชั้น | มาตรการ |
 |---|---|
-| ยืนยันตัวตน | Bearer token จาก env `RUNNER_TOKEN` (≥ 32 ตัวอักษร) เทียบด้วย `hmac.compare_digest` · ไม่เขียน token ลง log · ไม่มี token = runner ไม่ยอมเริ่ม |
+| ยืนยันตัวตน | ไม่มี (ตัดสินใจ 2026-10-09: ผู้เรียก flight.py เป็นคนในทั้งหมด) · ด่านเดียวคือ bind `127.0.0.1` โดย default — ตั้ง `RUNNER_HOST` เป็นอย่างอื่นแล้วทุกคนที่ถึง port ได้สั่งงานได้ |
 | allowlist | regex ใน `ALLOWED_IMAGES` เช่น `^(docker\.io/)?perkiepai/[a-z0-9][a-z0-9_.-]*(:\w[\w.-]{0,127}\|@sha256:[0-9a-f]{64})$` · ต้องมี namespace ชัดเจน · ไม่รับชื่อ local เปล่าๆ (กัน `competition-base`, `postgres:15.4` ฯลฯ) |
 | ขนาด | ก่อน pull: `docker manifest inspect` รวมขนาด layer · หลัง pull: `docker image inspect .Size` ≤ `MAX_IMAGE_GB` (default 16) ถ้าเกิน → rmi + `image_too_large` |
 | ดิสก์ | ว่าง ≥ `MIN_FREE_GB` (default 40) และ ≥ 2× ขนาด image (ตอนนี้ว่าง 115 GB, 94% ใช้แล้ว) |
@@ -333,12 +347,12 @@ POST /jobs → queued → pulling ─┬→ booting → flying → done
 ```bash
 # image archive (stream ไฟล์ด้วย -T ห้ามใช้ --data-binary เพราะ curl จะโหลดทั้งไฟล์เข้า RAM)
 docker save perkiepai/truck-detector:20260929 | gzip > truck.tar.gz
-curl -s -X POST -T truck.tar.gz -H "Authorization: Bearer $TOKEN" \
+curl -s -X POST -T truck.tar.gz \
   "$R/jobs?kind=image&name=truck-detector&flight_timeout_s=600"
 # → 202 {"job_id":"...","state":"queued","source":"upload"}
 
 # build bundle
-curl -s -X POST -T truck-detector.tar -H "Authorization: Bearer $TOKEN" "$R/jobs?kind=bundle&name=truck-detector"
+curl -s -X POST -T truck-detector.tar "$R/jobs?kind=bundle&name=truck-detector"
 ```
 endpoint เดียวกับการส่งชื่อ image (`POST /jobs`) แยกกันด้วย `Content-Type`: JSON = registry, อย่างอื่น (`curl -T` ส่ง `application/octet-stream`) = ไฟล์ · ติดตามผลด้วย endpoint เดิมทุกอย่าง
 
@@ -348,7 +362,7 @@ endpoint เดียวกับการส่งชื่อ image (`POST /jo
 2. ตรวจช่องรอ**ก่อน**รับไฟล์ (เต็ม → `409` โดยไม่รับไฟล์) · ไฟล์ที่กำลังส่งเข้ามาจองช่องรอไว้ · ได้ไฟล์ครบแล้วจึงสร้าง job (`source=upload`)
 3. **loading** (แทน pulling):
    - `kind=image`: อ่าน metadata ในไฟล์**ก่อน load** ทั้ง `manifest.json` (RepoTags) **และ `index.json`** (annotation `io.containerd.image.name` ซึ่ง Docker 29 + containerd image store ใช้ตั้งชื่อตอน load จริง) ต้องเป็น image เดียว และทุกชื่อต้อง**ยังไม่มีบนเครื่อง** ถ้าไม่ผ่าน → `archive_rejected` · หลัง load ตรวจซ้ำว่าชื่อที่ได้ตรงกับที่ตรวจไว้ ไม่ตรง → `archive_rejected` + runner `degraded` (อาจมี tag ถูกทับ ต้องให้คนตรวจ) · อ่านทีละ member จำกัด 100k member และ metadata ≤ 1 MB
-     (ไม่บังคับ allowlist ของ registry กับไฟล์อัปโหลด เพราะผู้ส่งยืนยันตัวด้วย token แล้ว และสิ่งที่อันตรายจริงคือการทับ tag ที่มีอยู่)
+     (ไม่บังคับ allowlist ของ registry กับไฟล์อัปโหลด เพราะผู้ส่งเป็นคนใน และสิ่งที่อันตรายจริงคือการทับ tag ที่มีอยู่)
      (กันไฟล์ที่ติด tag `competition-base:latest` หรือ `postgres:15.4` มาแล้วทับ image ของเรา) → `docker load -i` → retag เป็น `submission-<name>-<ts>` → ลบ tag เดิมที่มากับไฟล์
    - `kind=bundle`: ตรวจก่อนส่งต่อ ต้องมีแต่ไฟล์ธรรมดา/โฟลเดอร์ ไม่มี symlink/hardlink ไม่มี `..` และมี `Dockerfile` (เพราะตัวแตกไฟล์ของ drone-sitl ตามลิงก์ออกนอกโฟลเดอร์ได้) → เปิดเว็บแบบ `SKIP_SIM=1` → `POST :8090/agent/upload-docker?name=<name>.tar` (ส่งไฟล์ต่อแบบ stream) → ได้ `image_tag`
    - ตรวจขนาด image หลัง load/build ≤ `MAX_IMAGE_GB` · **ลบ `upload.tar` ทันทีหลัง load** (ไม่ต้องรอจบงาน)
@@ -356,7 +370,7 @@ endpoint เดียวกับการส่งชื่อ image (`POST /jo
 
 ### ความปลอดภัยเพิ่มเติม
 
-- ไฟล์ที่อัปโหลด = โค้ดที่ไม่รู้ที่มา เหมือนการ pull จึงใช้ token, timeout และ limit ของ container ชุดเดียวกัน
+- ไฟล์ที่อัปโหลด = โค้ดที่ไม่รู้ที่มา เหมือนการ pull จึงใช้ timeout และ limit ของ container ชุดเดียวกัน
 - `name` ต้องตรง `^[a-z0-9][a-z0-9_-]{0,63}$` (ทั้งสองแบบ) · bundle ใหญ่ได้ไม่เกิน 200 MB (ลิมิตของ drone-sitl `AGENT_DOCKER_MAX_BYTES`)
 - ไม่มีการแตกไฟล์ลงดิสก์เอง อ่านแค่ metadata ใน tar · **`_safe_extract` ของ drone-sitl กันชื่อไฟล์ `../` ได้แต่ไม่กัน symlink** (review 2026-10-05) flight-service จึงตรวจ bundle เองก่อนส่ง · **และปิดทางเข้าตรง:** ตอน flight-service เปิดเว็บ drone-sitl การอัปโหลด/pull ที่ `:8090` ต้องมี token ที่ flight-service สุ่มไว้ (`DRONE_SITL_UPLOAD_TOKEN`, ตัดสินใจ 2026-10-05: รับงานได้แค่ทาง curl / ระบบพี่ต้น)
 - ⚠️ อ่าน manifest ในไฟล์ `.gz` ต้องคลายไฟล์ทั้งไฟล์ (หลายนาทีสำหรับ 12 GB) ถ้าเป็น `.tar` ธรรมดาจะเร็วกว่ามาก
@@ -419,7 +433,7 @@ write_atomic(run_dir / "job.json", data)      # tmp + os.replace
 ### 13.5 Kill API
 
 ```bash
-curl -s -X POST -H "Authorization: Bearer $TOKEN" $R/jobs/<id>/kill        # id หาได้จาก GET /jobs
+curl -s -X POST $R/jobs/<id>/kill        # id หาได้จาก GET /jobs
 # → 200 {...job, "state":"killed", "result":{"partial":true,"ended_by":"kill", ..., "files":{...}}}
 ```
 
@@ -433,7 +447,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" $R/jobs/<id>/kill        # id 
 - **หยุดแบบนุ่มก่อน แล้วค่อยแรงขึ้นตามเวลา:** stop agent (รอ 10 s) → `docker rm -f` → `stop-website.sh` ทั้งนี้เพื่อให้ det_recorder ปิดไฟล์ mp4 ได้ทัน เพราะ mp4 ที่ไม่ได้ปิดไฟล์จะเล่นไม่ได้
 - state ใหม่ `killed` แยกจาก `failed` เพื่อให้รู้ว่าคนสั่งหยุดเอง ไม่ใช่ระบบพัง (มาแทน `cancelled` เดิม)
 - **POST ไม่ใช่ GET** (ตัดสินใจ 2026-10-05): ตามมาตรฐาน HTTP GET ต้องไม่เปลี่ยนสถานะระบบ proxy และระบบแชต (preview ลิงก์) จึงยิง GET เองได้ ถ้าใช้ GET อาจ kill งานโดยไม่ตั้งใจ
-- ไม่มี `/jobs/current/kill` เพราะซ้ำกับ `/jobs/{id}/kill` และการระบุ id ชัดเจนกันการ kill ผิดงานถ้างานเปลี่ยนไปแล้ว
+- `POST /kill` (ไม่ระบุ id) เพิ่มตาม 2026-10-09 ทั้งที่เดิมตัดทิ้งเพราะซ้ำกับ `/jobs/{id}/kill` ข้อแลกเปลี่ยน: ถ้างานเปลี่ยนระหว่างที่พิมพ์ จะหยุดงานที่เพิ่งขึ้นแทน · ต้องการความแน่นอนให้ใช้ `/jobs/{id}/kill`
 
 ### 13.6 ทุกครั้งที่รันเสร็จ: ลบ image + container แต่เก็บ data
 

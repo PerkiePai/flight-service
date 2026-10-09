@@ -7,7 +7,6 @@ import pytest
 from flight_service import preflight
 from flight_service.config import HERE
 
-TOKEN = "t" * 32
 FAKE_SITES = '''
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,7 +67,7 @@ class Machine:
             (self.map / name).write_bytes(data)
         (self.map / "SHA256SUMS").write_text(
             "".join(f"{hashlib.sha256(d).hexdigest()}  {n}\n" for n, d in layers.items()))
-        self.env = {"HOME": str(self.home), "RUNNER_TOKEN": TOKEN,
+        self.env = {"HOME": str(self.home),
                     "DRONE_SITL_DIR": str(self.sitl), "SITE": "mapsite"}
         self.fail = set()          # "conda run", "docker info", "docker image"
         self.missing = set()       # tool names which() does not find
@@ -181,9 +180,10 @@ def test_no_registry_login_is_only_a_warning(box):
     assert code == 0 and "warn registry login" in out and "docker login" in out
 
 
-def test_a_short_token_fails(box):
-    code, out = box.main(RUNNER_TOKEN="short")
-    assert code == 1 and "FAIL token" in out and "1 required check(s) failed" in out
+def test_there_is_no_token_check(box):
+    assert "token" not in box.checks()
+    code, out = box.main(RUNNER_TOKEN="left-over")          # an old .env is harmless
+    assert code == 0 and "RUNNER_TOKEN" not in out
 
 
 def test_the_vendored_copy_passes_the_drone_sitl_check():

@@ -7,10 +7,10 @@ anywhere.
   flight.py run IMAGE [--timeout S] [--out DIR] [--wait S]
   flight.py run --file X.tar --kind image|bundle --name N [--timeout S] [--out DIR] [--wait S]
   flight.py watch JOB_ID [--out DIR]
-  flight.py kill JOB_ID
+  flight.py kill [JOB_ID]
 
-Where and who: --url / FLIGHT_URL (default http://127.0.0.1:8095) and
---token / RUNNER_TOKEN. Progress goes to stderr; stdout carries one JSON
+Where: --url / FLIGHT_URL (default http://127.0.0.1:8095). There is no login:
+the service is for insiders. Progress goes to stderr; stdout carries one JSON
 line for whatever called this.
 
 Exit codes of run and watch:
@@ -50,7 +50,7 @@ POLL_S = 3
 POLL_GIVE_UP_S = 300        # no answer at all for this long while polling -> exit 2
 READY_POLL_S = 2
 SHOW_EVERY_S = 5            # one position line per this many seconds
-WHAT = {401: "token wrong or missing", 409: "pending slot full",
+WHAT = {409: "pending slot full",
         503: "service degraded: someone has to fix the machine"}
 
 sleep = time.sleep
@@ -147,15 +147,13 @@ def _may_send(sock):
 
 
 class Api:
-    def __init__(self, url, token):
-        self.url, self.token = url.rstrip("/"), token
+    def __init__(self, url):
+        self.url = url.rstrip("/")
 
     def _open(self, method, path, body=None, headers=None, timeout=None):
         """The response, whatever its status. Unreachable if there is none."""
         req = urllib.request.Request(self.url + path, data=body, method=method,
                                      headers=headers or {})
-        if self.token:
-            req.add_header("Authorization", "Bearer " + self.token)
         try:
             return urllib.request.urlopen(req, timeout=timeout or HTTP_TIMEOUT_S)
         except urllib.error.HTTPError as e:
@@ -227,7 +225,6 @@ class Api:
         try:
             with open(path, "rb") as f:
                 conn.putrequest("POST", f"{u.path}/jobs?{query}")
-                conn.putheader("Authorization", "Bearer " + self.token)
                 conn.putheader("Content-Type", "application/octet-stream")
                 conn.putheader("Content-Length", str(os.fstat(f.fileno()).st_size))
                 if not tls:
@@ -258,12 +255,14 @@ def cmd_health(api, args):
 
 
 def cmd_kill(api, args):
-    status, job = api.json("POST", f"/jobs/{args.job_id}/kill", timeout=KILL_TIMEOUT_S)
+    path = f"/jobs/{args.job_id}/kill" if args.job_id else "/kill"      # no id: the service picks
+    status, job = api.json("POST", path, timeout=KILL_TIMEOUT_S)
     if status not in (200, 202):
         raise Stop(explain(status, job), EXIT_FAILED if status in (404, 409) else EXIT_UNREACHABLE)
+    job_id = args.job_id or job.get("job_id")
     if status == 202:
-        say(f"kill taken; the service is still cleaning up: flight.py watch {args.job_id}")
-    print(json.dumps({"job_id": args.job_id, "state": job.get("state"),
+        say(f"kill taken; the service is still cleaning up: flight.py watch {job_id}")
+    print(json.dumps({"job_id": job_id, "state": job.get("state"),
                       "reason": job.get("reason")}), flush=True)
     return EXIT_OK
 
@@ -489,8 +488,6 @@ def parser():
                                 "flight-service, follow the flight, fetch the results.")
     p.add_argument("--url", default=os.environ.get("FLIGHT_URL", DEFAULT_URL),
                    help="the service (default: $FLIGHT_URL or %s)" % DEFAULT_URL)
-    p.add_argument("--token", default=os.environ.get("RUNNER_TOKEN", ""),
-                   help="bearer token (default: $RUNNER_TOKEN)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("health", help="can the service take a job now?")
     run = sub.add_parser("run", help="submit an image, follow the flight, fetch the results")
@@ -508,7 +505,8 @@ def parser():
         cmd.add_argument("--out", default="flight-out", metavar="DIR",
                          help="results go to DIR/<job_id>/ (default flight-out)")
     kill = sub.add_parser("kill", help="stop a job")
-    kill.add_argument("job_id")
+    kill.add_argument("job_id", nargs="?",
+                      help="the job to stop (default: the one flying now, else the next in line)")
     return p
 
 
@@ -521,9 +519,7 @@ def main(argv=None):
         if args.file and not (args.kind and args.name):
             p.error("--file needs --kind image|bundle and --name")
     try:
-        if args.cmd != "health" and not args.token:
-            raise Stop("no token: export RUNNER_TOKEN=... (the service's .env) or pass --token")
-        return COMMANDS[args.cmd](Api(args.url, args.token), args)
+        return COMMANDS[args.cmd](Api(args.url), args)
     except Stop as e:
         say(str(e))
         return e.code

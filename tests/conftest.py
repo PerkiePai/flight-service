@@ -34,12 +34,10 @@ def serve():
         thread.join(timeout=5)
 
 
-def http(method, url, token=None, body=None, raw=False, ctype=None):
+def http(method, url, body=None, raw=False, ctype=None):
     """(status, parsed JSON | bytes)."""
     data = json.dumps(body).encode() if isinstance(body, dict) else body
     req = urllib.request.Request(url, data=data, method=method)
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
     if data is not None:
         req.add_header("Content-Type", ctype or "application/json")
     try:

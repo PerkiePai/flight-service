@@ -16,7 +16,7 @@ ONE = ["busy", "start_web", "start_sim", "wait_px4_ready", "stop"]
 def setup(tmp_path, docker=None, sim=None, sitl=None, fly=None, **kw):
     tmp_path.mkdir(parents=True, exist_ok=True)
     kw.setdefault("data_retention_gb", 0)
-    s = Settings(token="t" * 32, drone_sitl_dir=tmp_path / "sitl", runs_dir=tmp_path / "runs",
+    s = Settings(drone_sitl_dir=tmp_path / "sitl", runs_dir=tmp_path / "runs",
                  docker_root=tmp_path, min_free_gb=0, collect_timeout_s=0.05, **kw)
     store = JobStore(s.runs_dir)
     w = Worker(s, store, docker or FakeDocker(), sim or FakeSim(), sitl or FakeSitl(),

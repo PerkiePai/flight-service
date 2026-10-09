@@ -13,25 +13,26 @@
 | # | ส่วน | ทำอะไร |
 |---|---|---|
 | ① | ระบบคิวพี่ต้น · ส่งงาน | ถือคิวหลัก เช็ก `ready` แล้วยิง `POST /jobs` |
-| ② | flight-service API | ตรวจ token → ช่องรอว่างไหม → JSON หรือไฟล์ → allowlist / ขนาด + ดิสก์ (ไม่ผ่าน = ตอบ 4xx/5xx ทันที ไม่สร้างงาน) |
+| ② | flight-service API | ช่องรอว่างไหม → JSON หรือไฟล์ → allowlist / ขนาด + ดิสก์ (ไม่ผ่าน = ตอบ 4xx/5xx ทันที ไม่สร้างงาน) |
 | ③ | Worker · เตรียม image | `pulling` (ผ่าน drone-sitl จาก Docker Hub) หรือ `loading` (docker load / build bundle) |
 | ④ | Worker + drone-sitl + Isaac Sim | `booting` (บูต sim, รอ PX4) → `flying` (RUN ผ่าน `/ws`, agent container บิน) |
 | ⑤ | จบงาน | **ทุกทางจบเข้า finalize ตัวเดียว** ได้แก่ จบเอง, ล้มทุกแบบ (เส้นประ), kill และ recover → cleanup → `done`/`failed`/`killed` |
 | ⑥ | data/runs/<id>/ | journal เขียนทันทีทุกเฟรม + ผลหลัง finalize · เก็บย้อนหลัง ≤ 10 GB |
 | ⑦ | ระบบคิวพี่ต้น · อ่านผล | ติดตามสดทาง stream หรือ poll สถานะ ดาวน์โหลดไฟล์ เห็น state จบแล้วส่งงานถัดไป |
 
-## 1. Endpoint (7 ตัว ตัวละหนึ่งหน้าที่)
+## 1. Endpoint (8 ตัว ตัวละหนึ่งหน้าที่)
 
-ทุกตัวยกเว้น `/healthz` ต้องมี header `Authorization: Bearer <RUNNER_TOKEN>`
+ไม่มี login: ไม่ต้องส่ง header ใด ๆ (service bind `127.0.0.1` — ผู้เรียกเป็นคนใน)
 
 | method | path | หน้าที่ | ตอบ |
 |---|---|---|---|
-| `GET` | `/healthz` | รับงานได้ไหม (ไม่ต้องใช้ token) | `200 {"ok", "ready", "phase", "pending"}` |
+| `GET` | `/healthz` | รับงานได้ไหม | `200 {"ok", "ready", "phase", "pending"}` |
 | `POST` | `/jobs` | **เริ่มงาน**: JSON = ชื่อ image บน registry · ไฟล์ = อัปโหลด image | `202 {"job_id", "state"}` |
 | `GET` | `/jobs` | ประวัติงาน 50 งานล่าสุด (สรุปสั้น) | `200 {"jobs": [...]}` |
 | `GET` | `/jobs/{id}` | สถานะ + ข้อมูลสด + ผลของงานเดียว | `200 {...}` |
 | `GET` | `/jobs/{id}/stream` | **ติดตามสด** (Server-Sent Events): state, telemetry ทุกบรรทัด, ผลตอนจบ | `200 text/event-stream` แล้วปิดสายหลัง `end` |
 | `POST` | `/jobs/{id}/kill` | หยุดงาน แล้วตอบด้วยข้อมูลที่เก็บได้ | `200` (หรือ `202` ถ้าเกิน 60 s) |
+| `POST` | `/kill` | ทางลัดไม่ต้องระบุ id: หยุดงานที่กำลังบิน ถ้าไม่มีหยุดงานที่รอคิวถัดไป (ไม่แตะงานอื่นในคิว) | เหมือนข้างบน · `409 {"detail":"no job to kill"}` ถ้าไม่มีงานค้าง |
 | `GET` | `/jobs/{id}/files/{name}` | ดาวน์โหลดไฟล์ผล (journal โหลดได้ตั้งแต่ระหว่างบิน) | ไฟล์ |
 
 `ready` = ยิง `POST /jobs` ตอนนี้จะถูกรับ (ช่องรอว่าง) · `pending` = งานในช่องรอ (0–1) · `phase`: `idle` · `running` · `finishing` · `cleanup` · `degraded` (ต้องมีคนแก้)
@@ -39,17 +40,18 @@
 ### ตัวอย่าง curl
 
 ```bash
-export R=http://127.0.0.1:8095  H="Authorization: Bearer $TOKEN"
+export R=http://127.0.0.1:8095
 
 curl -s $R/healthz                                               # {"ok":true,"ready":true,"phase":"idle","pending":0}
-curl -s -X POST $R/jobs -H "$H" -H 'Content-Type: application/json' \
+curl -s -X POST $R/jobs -H 'Content-Type: application/json' \
      -d '{"image":"perkiepai/truck-detector:20260929-214240","flight_timeout_s":600}'
-curl -s -X POST -T truck.tar "$R/jobs?kind=image&name=truck-detector" -H "$H"   # ส่งไฟล์ docker save
-curl -s -X POST -T bundle.tar "$R/jobs?kind=bundle&name=truck-detector" -H "$H" # ส่ง build bundle
-curl -s $R/jobs/<id> -H "$H"
-curl -sN $R/jobs/<id>/stream -H "$H"                              # ติดตามสด · ต่อใหม่: เพิ่ม -H 'Last-Event-ID: <เลขบรรทัดล่าสุดที่ได้>'
-curl -s -X POST $R/jobs/<id>/kill -H "$H"
-curl -s -o clip.mp4 $R/jobs/<id>/files/detections.mp4 -H "$H"
+curl -s -X POST -T truck.tar "$R/jobs?kind=image&name=truck-detector"   # ส่งไฟล์ docker save
+curl -s -X POST -T bundle.tar "$R/jobs?kind=bundle&name=truck-detector" # ส่ง build bundle
+curl -s $R/jobs/<id>
+curl -sN $R/jobs/<id>/stream                              # ติดตามสด · ต่อใหม่: เพิ่ม -H 'Last-Event-ID: <เลขบรรทัดล่าสุดที่ได้>'
+curl -s -X POST $R/kill                  # ไม่ต้องรู้ id
+curl -s -X POST $R/jobs/<id>/kill
+curl -s -o clip.mp4 $R/jobs/<id>/files/detections.mp4
 ```
 
 ### ข้อมูลที่ได้
@@ -95,7 +97,6 @@ data: {"job_id":"j-...","state":"done","failed_in":null,"reason":null,"detail":"
 |---|---|---|
 | `202` | รับงานแล้ว | เก็บ `job_id` แล้ว poll |
 | `400` / `403` / `413` / `415` / `411` | request ผิด / image ไม่อยู่ใน allowlist / ไฟล์ใหญ่เกิน / ผิดชนิด / ไม่มี Content-Length | แก้ request (ส่งซ้ำแบบเดิมไม่ช่วย) |
-| `401` | token ผิด | ตรวจ token |
 | `409` | **ช่องรอเต็ม** (`POST /jobs`, ตอบ `current_job` + `pending`) หรือ kill งานที่จบไปแล้ว | เก็บงานไว้ในคิวของพี่ต้น รอ `ready: true` แล้วส่งใหม่ |
 | `503` | runner `degraded` | แจ้งคนดูแล |
 | `507` | ดิสก์ไม่พอรับไฟล์ | แจ้งคนดูแล |

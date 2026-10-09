@@ -10,7 +10,8 @@ GB = 1024 ** 3
 DEFAULT_ALLOWED = (r"^(docker\.io/)?perkiepai/[a-z0-9][a-z0-9_.-]*"
                    r"(:\w[\w.-]{0,127}|@sha256:[0-9a-f]{64})$")
 DEFAULT_RUN_ARGS = ("--memory 24g --memory-swap 24g --pids-limit 1024 "
-                    "--cap-drop ALL --security-opt no-new-privileges")
+                    "--cap-drop ALL --security-opt no-new-privileges "
+                    "-e TZ=Asia/Bangkok")
 HERE = Path(__file__).resolve().parent.parent
 
 
@@ -25,7 +26,6 @@ def project_path(value):
 
 @dataclass(frozen=True)
 class Settings:
-    token: str
     drone_sitl_dir: Path
     runs_dir: Path
     host: str = "127.0.0.1"
@@ -66,15 +66,10 @@ class Settings:
     @classmethod
     def from_env(cls, env=None):
         env = os.environ if env is None else env
-        token = env.get("RUNNER_TOKEN", "")
-        if len(token) < 32:
-            raise SystemExit("RUNNER_TOKEN must be set and at least 32 characters")
-
         def num(name, default, kind=float):
             return kind(env.get(name, default))
 
         return cls(
-            token=token,
             drone_sitl_dir=project_path(env.get("DRONE_SITL_DIR", "vendor/drone-sitl")),
             runs_dir=Path(env.get("RUNS_DIR", HERE / "data" / "runs")),
             host=env.get("RUNNER_HOST", "127.0.0.1"),

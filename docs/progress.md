@@ -34,7 +34,7 @@ flight-service/
 │   ├── uploads.py · archive.py      (ส่วน B)
 │   ├── worker.py             คิว + pipeline + kill + recover
 │   ├── stream.py             GET /jobs/{id}/stream (SSE)
-│   └── app.py                HTTP API 7 endpoint + token
+│   └── app.py                HTTP API 8 endpoint
 ├── scripts/                  run-service.sh · stop-service.sh · flight.py (client) · mock-caller.sh
 ├── tests/                    fakes.py + test_<module>.py (ไม่เปิด sim)
 ├── docs/                     design · plan · progress · drone-sitl-changes · verification
@@ -66,3 +66,6 @@ flight-service/
 | 2026-10-06 | ติดตามสด | **ทาง B:** `GET /jobs/{id}/stream` (SSE) ส่ง telemetry ทุกบรรทัด + state + ผลตอนจบ · ไม่ส่ง log ของ agent / detections (ยังอยู่ใน `GET /jobs/{id}` และ `/files/*`) · poll เดิมยังใช้ได้ · API เป็น 7 endpoint |
 | 2026-10-06 | client | `scripts/flight.py` ไฟล์เดียว standard library · **Ctrl-C / SIGTERM ไม่ kill งาน** (งานเป็นของ service) · exit code 0 / 1 / 2 / 3 · `mock-caller.sh` เก็บไว้จนกว่า `flight.py` ผ่านรันจริง |
 | 2026-10-06 | ความพร้อมของเครื่องใน `/healthz` | แยกไปทำทีหลัง (ฐานคือ `scripts/preflight.sh`) · อยู่ใน `docs/followups.md` |
+| 2026-10-06 | compose ของ submission | เก็บเป็นไฟล์อ้างอิง `docs/reference/submission-run.{compose.yml,md}` (ทางเลือก 1) · ไม่แก้โค้ด · ของจริงตรงกับ compose ยกเว้น `TZ` กับ volume `sim` ที่ไม่มี (volume ไม่จำเป็น: ข้อมูลอยู่ที่ `data/runs/` + `results/`) · ผลผูกกับทีมผู้แข่งในอนาคต → `wishlist.md` ข้อ 4 |
+| 2026-10-09 | RUNNER_TOKEN | ถอดทิ้งทั้งระบบ (wishlist ข้อ 1): ผู้เรียก flight.py เป็นคนใน · service ไม่มี login ด่านเดียวคือ bind 127.0.0.1 · **ไม่**ทำ guard `RUNNER_ALLOW_REMOTE` (ผู้ใช้ตัดออก) · `sitl_upload_token` (service↔drone-sitl) คงไว้ · แผน `docs/superpowers/plans/2026-10-09-remove-runner-token.md` |
+| 2026-10-09 | kill ไม่ต้องระบุ id | เพิ่ม `POST /kill` + `flight.py kill` ไม่ใส่ id (ผู้ใช้เลือก ก+ข) · หยุดงานที่กำลังบิน → ไม่มีก็งานรอคิวถัดไป → ไม่มีเลย `409` · **ไม่หยุดทั้งคิว** · พลิกการตัดสินใจ 2026-10-05 ที่ไม่ทำ `/jobs/current/kill` |

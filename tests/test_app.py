@@ -10,8 +10,6 @@ from flight_service.app import create_app
 from flight_service.config import Settings
 from flight_service.jobs import DONE, FLYING, KILLED, QUEUED, JobStore
 
-TOKEN = "k" * 40
-
 
 class StubWorker:
     """Accepts jobs, never runs them."""
@@ -36,6 +34,9 @@ class StubWorker:
         if job.state == QUEUED:
             self.store.end(job, KILLED, "killed", "killed while queued")
             return True
+        if self.current is job:
+            self.store.end(job, KILLED, "killed", "killed while flying")
+            return True
         return False
 
     def accepting(self):
@@ -47,14 +48,14 @@ class StubWorker:
 
 
 def make(tmp_path, serve, **kw):
-    s = Settings(token=TOKEN, drone_sitl_dir=tmp_path, runs_dir=tmp_path / "runs", **kw)
+    s = Settings(drone_sitl_dir=tmp_path, runs_dir=tmp_path / "runs", **kw)
     store = JobStore(s.runs_dir)
     worker = StubWorker(store)
     return serve(create_app(s, store, worker)), store, worker
 
 
 def submit(url, image="perkiepai/x:1", **extra):
-    return http("POST", url + "/jobs", TOKEN, {"image": image, **extra})
+    return http("POST", url + "/jobs", {"image": image, **extra})
 
 
 def test_healthz_is_open_and_says_nothing_about_jobs(tmp_path, serve):
@@ -64,13 +65,21 @@ def test_healthz_is_open_and_says_nothing_about_jobs(tmp_path, serve):
     assert worker.recovered
 
 
-def test_everything_else_needs_the_token(tmp_path, serve):
+def test_no_header_is_needed(tmp_path, serve):
+    """Only insiders call this service (it binds 127.0.0.1): there is no login."""
     url, _, _ = make(tmp_path, serve)
-    assert http("GET", url + "/jobs")[0] == 401
-    assert http("GET", url + "/jobs", token="wrong" * 10)[0] == 401
-    assert http("POST", url + "/jobs", body={"image": "perkiepai/x:1"})[0] == 401
-    assert http("POST", url + "/jobs/x/kill")[0] == 401
-    assert http("GET", url + "/jobs/x/files/result.json", raw=True)[0] == 401
+    assert http("GET", url + "/jobs")[0] == 200
+    assert http("POST", url + "/jobs", {"image": "perkiepai/x:1"})[0] == 202
+    assert http("POST", url + "/jobs/x/kill")[0] == 404
+    assert http("GET", url + "/jobs/x/files/result.json", raw=True)[0] == 404
+
+
+def test_a_leftover_authorization_header_is_ignored(tmp_path, serve):
+    """An old script that still sends its bearer token keeps working."""
+    url, _, _ = make(tmp_path, serve)
+    req = urllib.request.Request(url + "/jobs", headers={"Authorization": "Bearer old-token"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        assert r.status == 200
 
 
 def test_create_list_get(tmp_path, serve):
@@ -78,23 +87,23 @@ def test_create_list_get(tmp_path, serve):
     code, body = submit(url)
     assert code == 202 and body["state"] == "queued" and body["source"] == "registry"
     assert worker.submitted == [body["job_id"]]
-    code, listing = http("GET", url + "/jobs", TOKEN)
+    code, listing = http("GET", url + "/jobs")
     assert code == 200 and [j["job_id"] for j in listing["jobs"]] == [body["job_id"]]
     assert "telemetry" not in listing["jobs"][0]
-    code, job = http("GET", f"{url}/jobs/{body['job_id']}", TOKEN)
+    code, job = http("GET", f"{url}/jobs/{body['job_id']}")
     assert code == 200 and job["flight_timeout_s"] == 600 and job["result"] is None
-    assert http("GET", url + "/jobs/nope", TOKEN)[0] == 404
+    assert http("GET", url + "/jobs/nope")[0] == 404
 
 
 def test_create_rejections(tmp_path, serve):
     url, store, _ = make(tmp_path, serve)
     assert submit(url, "postgres:15.4")[0] == 403
     assert submit(url, "perkiepai/x:1 ; ls")[0] == 400
-    assert http("POST", url + "/jobs", TOKEN, {"nope": 1})[0] == 400
-    assert http("POST", url + "/jobs", TOKEN, b"{not json")[0] == 400
+    assert http("POST", url + "/jobs", {"nope": 1})[0] == 400
+    assert http("POST", url + "/jobs", b"{not json")[0] == 400
     assert submit(url, flight_timeout_s=5000)[0] == 400
     assert submit(url, pad="x" * 5000)[0] == 413
-    assert http("POST", url + "/jobs", TOKEN, b"data", ctype="text/plain")[0] == 415
+    assert http("POST", url + "/jobs", b"data", ctype="text/plain")[0] == 415
     assert store.all() == []                               # no rejection created a job
 
 
@@ -112,20 +121,59 @@ def test_busy_and_degraded(tmp_path, serve):
 def test_kill(tmp_path, serve):
     url, _, _ = make(tmp_path, serve)
     jid = submit(url)[1]["job_id"]
-    code, body = http("POST", f"{url}/jobs/{jid}/kill", TOKEN)
+    code, body = http("POST", f"{url}/jobs/{jid}/kill")
     assert code == 200 and body["state"] == "killed" and body["failed_in"] == "queued"
-    assert http("POST", f"{url}/jobs/{jid}/kill", TOKEN)[0] == 409
-    assert http("POST", url + "/jobs/nope/kill", TOKEN)[0] == 404
-    assert http("GET", f"{url}/jobs/{jid}/kill", TOKEN)[0] in (404, 405)      # no GET kill
+    assert http("POST", f"{url}/jobs/{jid}/kill")[0] == 409
+    assert http("POST", url + "/jobs/nope/kill")[0] == 404
+    assert http("GET", f"{url}/jobs/{jid}/kill")[0] in (404, 405)      # no GET kill
+
+
+def start_flying(store, worker, jid):
+    """What the worker does when it takes a job off the queue."""
+    job = store.get(jid)
+    worker.current = job
+    store.set_state(job, FLYING)
+    return job
+
+
+def test_kill_without_an_id_stops_the_flying_job_and_leaves_the_queue_alone(tmp_path, serve):
+    url, store, worker = make(tmp_path, serve)
+    flying = submit(url)[1]["job_id"]
+    start_flying(store, worker, flying)
+    waiting = submit(url)[1]["job_id"]
+    code, body = http("POST", url + "/kill")
+    assert (code, body["job_id"], body["state"]) == (200, flying, "killed")
+    assert store.get(waiting).state == QUEUED
+
+
+def test_kill_without_an_id_stops_the_next_queued_job_when_nothing_flies(tmp_path, serve):
+    url, store, worker = make(tmp_path, serve)
+    worker.max_pending = 3
+    first, second = submit(url)[1]["job_id"], submit(url)[1]["job_id"]
+    code, body = http("POST", url + "/kill")
+    assert (code, body["job_id"], body["state"]) == (200, first, "killed")
+    assert store.get(second).state == QUEUED
+
+
+def test_kill_without_an_id_with_nothing_to_kill(tmp_path, serve):
+    url, store, worker = make(tmp_path, serve)
+    assert http("POST", url + "/kill") == (409, {"detail": "no job to kill"})
+    jid = submit(url)[1]["job_id"]
+    http("POST", f"{url}/jobs/{jid}/kill")
+    assert http("POST", url + "/kill")[0] == 409                 # the ended job is not a target
+    start_flying(store, worker, submit(url)[1]["job_id"])
+    store.end(worker.current, KILLED, "killed")                   # current job already over
+    assert http("POST", url + "/kill")[0] == 409
+    assert http("GET", url + "/kill")[0] == 405                   # no GET kill
 
 
 def test_files_are_served_by_name_only(tmp_path, serve):
     url, store, _ = make(tmp_path, serve)
     jid = submit(url)[1]["job_id"]
     (store.dir(store.get(jid)) / "telemetry.jsonl").write_text('{"t": 0}\n')
-    assert http("GET", f"{url}/jobs/{jid}/files/telemetry.jsonl", TOKEN, raw=True) == (200, b'{"t": 0}\n')
+    assert http("GET", f"{url}/jobs/{jid}/files/telemetry.jsonl", raw=True) == (200, b'{"t": 0}\n')
     for name in ("job.json", "panel.log", "..%2Fjob.json"):
-        assert http("GET", f"{url}/jobs/{jid}/files/{name}", TOKEN, raw=True)[0] == 404
+        assert http("GET", f"{url}/jobs/{jid}/files/{name}", raw=True)[0] == 404
 
 
 def test_a_journal_growing_during_download_arrives_whole(tmp_path, serve):
@@ -137,8 +185,7 @@ def test_a_journal_growing_during_download_arrives_whole(tmp_path, serve):
     path = store.dir(store.get(jid)) / "telemetry.jsonl"
     original = b'{"t": 0}\n' * (32 * 1024 * 1024 // 9)             # ~32 MB, more than socket buffers
     path.write_bytes(original)
-    req = urllib.request.Request(f"{url}/jobs/{jid}/files/telemetry.jsonl",
-                                 headers={"Authorization": f"Bearer {TOKEN}"})
+    req = urllib.request.Request(f"{url}/jobs/{jid}/files/telemetry.jsonl")
     with urllib.request.urlopen(req, timeout=30) as r:
         declared = int(r.headers["Content-Length"])
         first = r.read(65536)
@@ -155,7 +202,7 @@ def test_framework_doc_routes_are_not_served(tmp_path, serve):
 
 
 def upload(url, data, query="kind=image&name=truck", ctype="application/octet-stream"):
-    return http("POST", f"{url}/jobs?{query}", TOKEN, data, ctype=ctype)
+    return http("POST", f"{url}/jobs?{query}", data, ctype=ctype)
 
 
 def test_upload_creates_a_job_with_the_file(tmp_path, serve):
@@ -201,10 +248,8 @@ def flown(store, lines=3):
     return job
 
 
-def open_stream(url, jid, last_id=None, token=TOKEN):
+def open_stream(url, jid, last_id=None):
     req = urllib.request.Request(f"{url}/jobs/{jid}/stream")
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
     if last_id is not None:
         req.add_header("Last-Event-ID", str(last_id))
     return urllib.request.urlopen(req, timeout=10)
@@ -224,13 +269,11 @@ def next_event(r):
             block = b""
 
 
-def test_stream_needs_the_token_and_a_job(tmp_path, serve):
+def test_stream_needs_a_job(tmp_path, serve):
     url, store, _ = make(tmp_path, serve)
     jid = flown(store).id
-    assert http("GET", f"{url}/jobs/{jid}/stream")[0] == 401
-    assert http("GET", f"{url}/jobs/{jid}/stream", token="wrong" * 10)[0] == 401
-    assert http("GET", f"{url}/jobs/nope/stream", TOKEN) == (404, {"detail": "no such job"})
-    assert http("POST", f"{url}/jobs/{jid}/stream", TOKEN)[0] == 405
+    assert http("GET", f"{url}/jobs/nope/stream") == (404, {"detail": "no such job"})
+    assert http("POST", f"{url}/jobs/{jid}/stream")[0] == 405
 
 
 def test_stream_of_a_finished_job_replays_it_and_closes(tmp_path, serve):

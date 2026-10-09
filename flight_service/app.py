@@ -1,7 +1,6 @@
-"""HTTP API (design 3): seven endpoints, one job each. Bearer token on
-everything but /healthz."""
+"""HTTP API (design 3): seven endpoints, one job each. No login: whoever can
+reach the port is an insider (the service binds 127.0.0.1)."""
 import asyncio
-import hmac
 import os
 import re
 import secrets
@@ -9,7 +8,7 @@ import shutil
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -43,12 +42,6 @@ class JobRequest(BaseModel):
 
 
 def create_app(settings, store, worker):
-    expected = f"Bearer {settings.token}".encode()
-
-    def auth(request: Request):
-        if not hmac.compare_digest(request.headers.get("authorization", "").encode(), expected):
-            raise HTTPException(401, "missing or wrong bearer token")
-
     @asynccontextmanager
     async def lifespan(app):
         await worker.recover()
@@ -56,7 +49,7 @@ def create_app(settings, store, worker):
         yield
         task.cancel()
 
-    # The seven endpoints of design 3 only: no unauthenticated /docs, /redoc, /openapi.json.
+    # The seven endpoints of design 3 only: no /docs, /redoc, /openapi.json.
     app = FastAPI(title="flight-service", lifespan=lifespan,
                   docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -158,24 +151,22 @@ def create_app(settings, store, worker):
     def healthz():
         return worker.health()
 
-    @app.post("/jobs", status_code=202, dependencies=[Depends(auth)])
+    @app.post("/jobs", status_code=202)
     async def create(request: Request):
         """JSON = image on a registry; anything else = an uploaded image file."""
         if request.headers.get("content-type", "").startswith("application/json"):
             return await create_from_registry(request)
         return await create_from_upload(request)
 
-    @app.get("/jobs", dependencies=[Depends(auth)])
+    @app.get("/jobs")
     def list_jobs():
         return {"jobs": [j.summary() for j in store.all()[:50]]}
 
-    @app.get("/jobs/{job_id}", dependencies=[Depends(auth)])
+    @app.get("/jobs/{job_id}")
     def get_job(job_id: str):
         return job_or_404(job_id).public()
 
-    @app.post("/jobs/{job_id}/kill", dependencies=[Depends(auth)])
-    async def kill(job_id: str):
-        job = job_or_404(job_id)
+    async def kill_job(job):
         if job.state in TERMINAL or not worker.kill(job):
             raise HTTPException(409, f"job is {job.state}; nothing to kill")
         deadline = time.monotonic() + settings.kill_wait_s
@@ -183,7 +174,23 @@ def create_app(settings, store, worker):
             await asyncio.sleep(0.2)
         return JSONResponse(job.public(), status_code=200 if job.state in TERMINAL else 202)
 
-    @app.get("/jobs/{job_id}/files/{name}", dependencies=[Depends(auth)])
+    @app.post("/jobs/{job_id}/kill")
+    async def kill(job_id: str):
+        return await kill_job(job_or_404(job_id))
+
+    @app.post("/kill")
+    async def kill_current():
+        """No id: the job that is flying; failing that the one next in line.
+        Never the whole queue -- the others may belong to someone else."""
+        job = worker.current
+        if job is None or job.state in TERMINAL:
+            waiting = worker.queued()               # newest first: the last runs next
+            job = waiting[-1] if waiting else None
+        if job is None:
+            raise HTTPException(409, "no job to kill")
+        return await kill_job(job)
+
+    @app.get("/jobs/{job_id}/files/{name}")
     def get_file(job_id: str, name: str):
         path = store.dir(job_or_404(job_id)) / name
         if name not in FILES or not path.is_file():
@@ -195,9 +202,9 @@ def create_app(settings, store, worker):
                                  headers={"Content-Length": str(size),
                                           "Content-Disposition": f'attachment; filename="{name}"'})
 
-    @app.get("/jobs/{job_id}/stream", dependencies=[Depends(auth)])
+    @app.get("/jobs/{job_id}/stream")
     def stream_job(job_id: str, request: Request):
-        """The flight as Server-Sent Events (design 3.1). 404 and 401 are
+        """The flight as Server-Sent Events (design 3.1). 404 is
         answered before the stream opens; Last-Event-ID resumes it."""
         job = job_or_404(job_id)
         skip = stream.last_event_id(request.headers.get("last-event-id"))

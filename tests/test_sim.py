@@ -10,7 +10,7 @@ from flight_service.sim import SimControl, px4_ready
 
 
 def settings(tmp_path, **kw):
-    return Settings(token="t" * 32, drone_sitl_dir=tmp_path, runs_dir=tmp_path / "runs",
+    return Settings(drone_sitl_dir=tmp_path, runs_dir=tmp_path / "runs",
                     px4_ready_timeout_s=0.3, **kw)
 
 

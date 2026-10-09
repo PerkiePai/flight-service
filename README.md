@@ -13,7 +13,6 @@
 ```bash
 cd ~/pai/flight-service
 cp .env.example .env
-sed -i "s/^RUNNER_TOKEN=.*/RUNNER_TOKEN=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')/" .env
 chmod 600 .env
 ```
 
@@ -21,8 +20,7 @@ chmod 600 .env
 
 | ค่า | default | ความหมาย |
 |---|---|---|
-| `RUNNER_TOKEN` | — (ต้องตั้ง ≥ 32 ตัว) | Bearer token ของทุก endpoint ยกเว้น `/healthz` |
-| `RUNNER_HOST` / `RUNNER_PORT` | `127.0.0.1` / `8095` | เปิดให้เครื่องอื่นเรียก: ตั้ง host เป็น IP ของเครื่อง (ควรอยู่หลัง VPN/reverse proxy เพราะไม่มี TLS) |
+| `RUNNER_HOST` / `RUNNER_PORT` | `127.0.0.1` / `8095` | **service ไม่มี login** ใครถึง port ได้ก็สั่งบินและอัปโหลดไฟล์ได้ จึงคง `127.0.0.1` ไว้ · เปิดให้เครื่องอื่นเรียก: ตั้ง host เป็น IP ของเครื่อง (ควรอยู่หลัง VPN/reverse proxy เพราะไม่มี TLS และไม่มี login) |
 | `ALLOWED_IMAGES` | `^(docker\.io/)?perkiepai/...` | regex ของ image ที่ยอมให้ pull (คั่นด้วยช่องว่าง) |
 | `DATA_RETENTION_GB` | `10` | เก็บข้อมูลย้อนหลังรวมไม่เกินนี้ (ลบงานเก่าสุดก่อน · `0` = ไม่ลบ) |
 | `MAX_PENDING` | `1` | งานที่รอได้ต่อจากงานที่กำลังทำ |
@@ -46,7 +44,7 @@ repo นี้พก drone-sitl ส่วนที่ใช้มาด้วย
 1. คัดลอก repo ไป (git clone หรือ copy ทั้งโฟลเดอร์)
 2. ไฟล์แผนที่ใหญ่ที่ไม่อยู่ใน git: เครื่องเดิม `tar -C vendor/maps -cf nt-testgs-map.tar nt-testgs` → เครื่องใหม่ `tar -C vendor/maps -xf nt-testgs-map.tar`
 3. image ฐานของ bundle: `cd vendor/drone-sitl && docker build -t competition-base:latest -f docker/competition-base/Dockerfile .`
-4. `cp .env.example .env` → ตั้ง `RUNNER_TOKEN` (และ path ข้างบนถ้าไม่ตรง default)
+4. `cp .env.example .env` (แก้ path ข้างบนถ้าไม่ตรง default)
 5. `./scripts/preflight.sh` จนขึ้น `preflight: ready` (ทุกข้อที่ไม่ผ่านมีบรรทัด `fix:` บอกวิธี)
 6. `./scripts/run-service.sh` แล้วลองด้วย `./scripts/mock-caller.sh <image>`
 
@@ -63,33 +61,35 @@ repo นี้พก drone-sitl ส่วนที่ใช้มาด้วย
 ## เรียก API
 
 ```bash
-export R=http://127.0.0.1:8095 H="Authorization: Bearer $RUNNER_TOKEN"
+export R=http://127.0.0.1:8095
 ```
 
 | method | path | หน้าที่ |
 |---|---|---|
-| `GET` | `/healthz` | รับงานได้ไหม (ไม่ต้องใช้ token) |
+| `GET` | `/healthz` | รับงานได้ไหม |
 | `POST` | `/jobs` | เริ่มงาน |
 | `GET` | `/jobs` | ประวัติงาน 50 งานล่าสุด |
 | `GET` | `/jobs/{id}` | สถานะ + ข้อมูลสด + ผล |
 | `GET` | `/jobs/{id}/stream` | ติดตามสด (Server-Sent Events) |
 | `POST` | `/jobs/{id}/kill` | หยุดงาน แล้วตอบด้วยข้อมูลที่เก็บได้ |
+| `POST` | `/kill` | เหมือนข้างบนแต่ไม่ต้องระบุ id: หยุดงานที่กำลังบิน (ไม่มี → งานที่รอคิวถัดไป · ไม่มีเลย → `409`) ไม่แตะงานอื่นในคิว |
 | `GET` | `/jobs/{id}/files/{name}` | ดาวน์โหลดไฟล์ผล |
 
 ```bash
 curl -s $R/healthz
 # {"ok":true,"ready":true,"phase":"idle","pending":0}     ready = POST ตอนนี้จะถูกรับ
 
-curl -s -X POST $R/jobs -H "$H" -H 'Content-Type: application/json' \
+curl -s -X POST $R/jobs -H 'Content-Type: application/json' \
      -d '{"image":"perkiepai/truck-detector:20260929-214240","flight_timeout_s":600}'
 # 202 {"job_id":"j-20261005-033950-b5fa","state":"queued","source":"registry"}
 # 409 {"detail":"busy","current_job":"...","pending":["..."]}   ช่องรอเต็ม → เก็บไว้ในคิวของคุณ รอ ready แล้วส่งใหม่
 # 503 {"detail":"degraded"}                                      ต้องมีคนแก้ (ดูหัวข้อแก้ปัญหา)
 
-curl -s $R/jobs/j-20261005-033950-b5fa -H "$H"                  # poll ทุก 1–5 s
-curl -sN $R/jobs/j-20261005-033950-b5fa/stream -H "$H"          # หรือติดตามสด: event state / telemetry / end (docs/api.md)
-curl -s -X POST $R/jobs/j-20261005-033950-b5fa/kill -H "$H"     # 200 = จบแล้วพร้อมผล · 202 = ยังเก็บกวาดอยู่ ให้ poll ต่อ
-curl -s -o clip.mp4 $R/jobs/j-20261005-033950-b5fa/files/detections.mp4 -H "$H"
+curl -s $R/jobs/j-20261005-033950-b5fa                  # poll ทุก 1–5 s
+curl -sN $R/jobs/j-20261005-033950-b5fa/stream          # หรือติดตามสด: event state / telemetry / end (docs/api.md)
+curl -s -X POST $R/kill                                  # ไม่ต้องรู้ id: หยุดงานที่กำลังบิน
+curl -s -X POST $R/jobs/j-20261005-033950-b5fa/kill     # 200 = จบแล้วพร้อมผล · 202 = ยังเก็บกวาดอยู่ ให้ poll ต่อ
+curl -s -o clip.mp4 $R/jobs/j-20261005-033950-b5fa/files/detections.mp4
 ```
 
 ### ส่งไฟล์ image แทนชื่อ image
@@ -99,10 +99,10 @@ endpoint เดียวกัน (`POST /jobs`) ส่งเป็นไฟล�
 ```bash
 # ผลของ docker save (.tar หรือ .tar.gz) · ≤ 16 GB · ชื่อ image ในไฟล์ต้องยังไม่มีบนเครื่อง
 docker save my-agent:1 -o agent.tar
-curl -s -X POST -T agent.tar -H "$H" "$R/jobs?kind=image&name=my-agent&flight_timeout_s=600"
+curl -s -X POST -T agent.tar "$R/jobs?kind=image&name=my-agent&flight_timeout_s=600"
 
 # build bundle: tar ที่มี Dockerfile (FROM competition-base) + โค้ด · ≤ 200 MB · ไฟล์ธรรมดาเท่านั้น (ไม่มี symlink)
-curl -s -X POST -T bundle.tar -H "$H" "$R/jobs?kind=bundle&name=my-agent"
+curl -s -X POST -T bundle.tar "$R/jobs?kind=bundle&name=my-agent"
 ```
 
 ไม่ผ่าน: `409` ช่องรอเต็ม (ไม่รับไฟล์) · `411` ไม่มี Content-Length · `413` ใหญ่เกิน · `507` ดิสก์ไม่พอ · `408` ไม่มีข้อมูลเข้ามา 60 s · ไฟล์ผิดรูปแบบ/ชื่อชน/มี link → งาน `failed` ด้วย `archive_rejected`
@@ -112,13 +112,14 @@ curl -s -X POST -T bundle.tar -H "$H" "$R/jobs?kind=bundle&name=my-agent"
 ไฟล์เดียว ใช้แค่ Python 3.8+ (ไม่ต้องติดตั้งอะไร) copy ไปเครื่องผู้เรียกได้เลย · ส่งงาน → ตามสดทาง stream → ดึงไฟล์ผล → บอกผลด้วย exit code
 
 ```bash
-export FLIGHT_URL=http://127.0.0.1:8095 RUNNER_TOKEN=<token ใน .env ของ service>
+export FLIGHT_URL=http://127.0.0.1:8095     # ไม่ตั้งก็ได้ถ้าเรียกจากเครื่องเดียวกับ service (default ตัวนี้)
 
 scripts/flight.py health                                   # {"ok": true, "ready": true, ...}  exit 0 = ส่งงานได้
 scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600 --out results
 scripts/flight.py run --file agent.tar --kind image --name my-agent      # ส่งไฟล์แทนชื่อ image (bundle: --kind bundle)
 scripts/flight.py watch j-20261005-033950-b5fa --out results             # กลับมาตามงานเดิม เช่นหลัง client ถูกปิด
-scripts/flight.py kill j-20261005-033950-b5fa
+scripts/flight.py kill                       # งานที่กำลังบิน (ไม่ต้องใส่ id)
+scripts/flight.py kill j-20261005-033950-b5fa   # หรือระบุ id
 ```
 
 | exit code ของ `run` / `watch` | ความหมาย |
@@ -177,8 +178,8 @@ scripts/flight.py kill j-20261005-033950-b5fa
 
 ## ความปลอดภัยและข้อจำกัด
 
-- token ทุก endpoint ยกเว้น `/healthz` · allowlist ของ image · จำกัดเวลาบิน · จำกัดขนาด image 16 GB และดิสก์ว่าง ≥ 40 GB
-- container ของผู้แข่งรันด้วย `--memory 24g --pids-limit 1024 --cap-drop ALL --security-opt no-new-privileges` (ผ่าน `DRONE_SITL_DOCKER_RUN_ARGS` ของ drone-sitl)
+- ไม่มี login (ผู้เรียกเป็นคนใน; service bind 127.0.0.1) · allowlist ของ image · จำกัดเวลาบิน · จำกัดขนาด image 16 GB และดิสก์ว่าง ≥ 40 GB
+- container ของผู้แข่งรันด้วย `--memory 24g --pids-limit 1024 --cap-drop ALL --security-opt no-new-privileges -e TZ=Asia/Bangkok` (ผ่าน `DRONE_SITL_DOCKER_RUN_ARGS` ของ drone-sitl)
 - **รับงานได้ทาง API นี้เท่านั้น:** ตอนที่ service เปิดเว็บ drone-sitl (`:8090`) การอัปโหลด/pull ที่หน้าเว็บนั้นตรง ๆ ได้ `403` (ใช้ token ที่ service สุ่มใหม่ทุกครั้งที่เริ่ม)
 - **ยังเสี่ยง:** container ใช้ `--network host` จึงเข้าถึง service อื่นบนเครื่องได้ (design 8) · ไม่มี TLS
 - ถ้า service ถูกปิดกลางบิน คลิป MP4 ของงานนั้นอาจไม่มี (journal ครบ) · kill/timeout ระหว่าง pull: service หยุด `docker pull` ที่ค้างและลบสิ่งที่ pull มาให้ · `/ws` หลุดชั่วคราว: ต่อใหม่ภายใน 10 s แล้วติดตามการบินต่อ
@@ -189,7 +190,7 @@ scripts/flight.py kill j-20261005-033950-b5fa
 |---|---|
 | งาน fail `sim_busy` | มี sim/เว็บค้าง: `vendor/drone-sitl/sim/stop-website.sh` แล้วส่งใหม่ |
 | `/healthz` → `ok:false, phase:degraded` (POST ได้ 503) | cleanup ปิด sim ไม่ได้: รัน `vendor/drone-sitl/sim/stop-website.sh` เอง เช็ก `:8080`/`:8090` ว่าไม่ตอบ แล้ว `./scripts/stop-service.sh && ./scripts/run-service.sh` |
-| `run-service.sh` บอก not answering | ดู `logs/service.console` (ไม่มี `.env` / token สั้นเกิน / port ถูกใช้) |
+| `run-service.sh` บอก not answering | ดู `logs/service.console` (ไม่มี `.env` / port ถูกใช้) |
 | งาน fail `sim_boot_timeout` / `px4_not_ready` | ดู `vendor/drone-sitl/logs/launch-sitl.console` · GPU ถูกใช้อยู่ไหม (`nvidia-smi`) |
 
 ## เทสต์

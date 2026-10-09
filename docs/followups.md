@@ -14,10 +14,9 @@
 - run_job prologue (RUNNING touch, RunLog open) outside try — an OSError there leaves phase=running → every POST 409
 - kill landing between create_task and run_job start: job marked killed then still runs — re-check QUEUED at top of run_job
 - finalize/wait_clip raising leaves result=None and a RUNNING marker retention never deletes
-- JSON body size checked after reading the whole body (token holders only)
+- JSON body size checked after reading the whole body (anyone who can reach the port)
 - new_lines drops a line identical to a full 40-line identical window (panel.log loses repeats)
 - telemetry.jsonl also stores docker_build.log + detrec every frame (~MBs/run)
-- RUNNER_TOKEN inherited by drone-sitl processes (not by the agent container) — strip from env
 - elapsed_s keeps growing after a terminal state
 - flight_timeout_s 0 silently becomes 600 instead of 400
 - MAX_PENDING=0 blocks every job — require >= 1
@@ -33,7 +32,7 @@
 ไฟล์เดียว ใช้แค่ Python 3.8+ (ไม่ต้องติดตั้งอะไร) copy ไปเครื่องผู้เรียกได้เลย · ส่งงาน → ตามสดทาง stream → ดึงไฟล์ผล → บอกผลด้วย exit code
 
 ```bash
-export FLIGHT_URL=http://127.0.0.1:8095 RUNNER_TOKEN=<token ใน .env ของ service>
+export FLIGHT_URL=http://127.0.0.1:8095     # ไม่ตั้งก็ได้ถ้าเรียกจากเครื่องเดียวกับ service
 
 scripts/flight.py health                                   # {"ok": true, "ready": true, ...}  exit 0 = ส่งงานได้
 scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600 --out results

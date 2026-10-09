@@ -9,7 +9,7 @@ say() { echo "run-service: $*"; }
 if [[ -f run/service.pid ]] && kill -0 "$(cat run/service.pid)" 2>/dev/null; then
     say "already running (pid $(cat run/service.pid))"; exit 0
 fi
-[[ -f .env ]] || { say "no .env -- cp .env.example .env and set RUNNER_TOKEN" >&2; exit 1; }
+[[ -f .env ]] || { say "no .env -- cp .env.example .env" >&2; exit 1; }
 set -a; source .env; set +a
 # The env's own python, not `conda run`: the saved pid is then the server's
 # and stop-service.sh never needs a pattern kill.
