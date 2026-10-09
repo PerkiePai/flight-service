@@ -1,0 +1,33 @@
+# Reference only -- NOT used by flight-service. A docker-compose description of
+# how a competition submission container runs (given by the user 2026-10-06).
+# What flight-service really does is compared in submission-run.md.
+services:
+  submission-run:
+    image: submission-truck-detector-20261006-112704
+    container_name: drone-sim
+    working_dir: /competition
+    entrypoint:
+      - python
+      - agent_runner.py
+      - "--file"
+      - full_flight_agent.py
+    network_mode: "host"
+    shm_size: '64m'
+    security_opt:
+      - no-new-privileges:true
+
+    volumes:
+      - /home/droneuser/sim:/competition/sim
+
+    deploy:
+      resources:
+        limits:
+          memory: 24G # 25769803776 bytes
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all # Count: -1 in docker inspect maps to "all" GPUs
+              capabilities: [gpu]
+
+    environment:
+      - TZ=Asia/Bangkok
