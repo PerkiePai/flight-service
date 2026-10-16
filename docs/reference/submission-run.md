@@ -15,7 +15,7 @@
 | `shm_size 64m` | ตรง (`ShmSize 67108864`) | เป็นค่า default ของ docker ไม่ต้องใส่ flag |
 | `TZ=Asia/Bangkok` | ✅ เพิ่มแล้ว (`-e TZ=Asia/Bangkok` ใน `DEFAULT_RUN_ARGS`) | ก่อนหน้านี้ไม่มีใน `Env` ของ container |
 | volume `/home/droneuser/sim:/competition/sim` | **ไม่มี** (`Binds null`, `Mounts []`) | ไม่มีโฟลเดอร์นี้ใน image และ agent ไม่เขียนไฟล์เอง — ไม่จำเป็น |
-| `container_name drone-sim` | ต่าง | ของจริงชื่อ `submission-run-<เวลา>` (drone-sitl ตั้ง) |
+| `container_name drone-sim` | ✅ ตรงแล้ว (vendor patch `0002`, 2026-10-16) | ก่อนหน้านี้ชื่อ `submission-run-<เวลา>` (drone-sitl ตั้ง) |
 | — | `--cap-drop ALL`, `--pids-limit 1024`, `--memory-swap 24g` | เรามีเพิ่ม compose ไม่มี |
 | — | `AutoRemove true` | container ถูกลบเองตอนจบ |
 

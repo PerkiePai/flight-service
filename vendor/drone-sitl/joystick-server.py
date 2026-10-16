@@ -570,7 +570,10 @@ class AgentRun:
 
     def _spawn(self):
         if self.kind == "docker":
-            self._container_name = f"submission-run-{time.strftime('%Y%m%d-%H%M%S')}"
+            # flight-service vendor patch 0002: the same fixed name as
+            # container_name in the submission compose
+            # (docs/reference/submission-run.compose.yml); one agent at a time.
+            self._container_name = "drone-sim"
             # `docker info` can list an "nvidia" runtime purely from
             # /etc/docker/daemon.json with no nvidia-container-toolkit
             # actually installed -- --gpus all then fails the whole run

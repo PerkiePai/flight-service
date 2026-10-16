@@ -11,6 +11,7 @@ flight-service รันสคริปต์และเว็บ `:8090` ข�
 
 - **ห้ามแก้ไฟล์ใน `drone-sitl/` ตรงๆ** ซิงก์ครั้งหน้าจะทับ · ต้องแก้ → เพิ่ม `patches/drone-sitl/NNNN-<เรื่อง>.patch` (`diff -u a/<path> b/<path>`) แล้วรันสคริปต์ซิงก์
 - patch ที่มี: `0001-sites-nt-testgs-map-in-repo.patch` ชี้ `stage_usd` ของ `nt-testgs` ไปที่ `../maps/nt-testgs/drone_map.usda` (เดิมเป็น path ตายตัวใน home ของเครื่องเดิม)
+- `0002-agent-container-name-drone-sim.patch` ตั้งชื่อ container ของ agent เป็น `drone-sim` ตายตัวให้ตรงกับ compose ของ submission (เดิมเป็น `submission-run-<เวลา>`) · บินได้ทีละงานอยู่แล้วจึงไม่ชนกัน
 
 ## ซิงก์จาก drone-sitl ต้นทาง
 

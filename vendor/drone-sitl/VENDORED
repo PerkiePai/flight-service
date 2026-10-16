@@ -1,4 +1,4 @@
 source_commit=29457833ed77d127f689fe4fab435029f96a1d8c
 source_subject=docs: record the approved upload-token change
-vendored_at=2026-10-05T19:16:49Z
-patches=0001-sites-nt-testgs-map-in-repo.patch
+vendored_at=2026-10-16T08:28:05Z
+patches=0001-sites-nt-testgs-map-in-repo.patch 0002-agent-container-name-drone-sim.patch

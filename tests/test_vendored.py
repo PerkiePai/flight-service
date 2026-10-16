@@ -41,7 +41,9 @@ def test_every_manifest_path_is_in_the_copy():
 def test_the_copy_records_its_source_and_patch():
     rec = dict(ln.split("=", 1) for ln in (SITL / "VENDORED").read_text().splitlines())
     assert re.fullmatch(r"[0-9a-f]{40}", rec["source_commit"])
-    assert rec["patches"].split() == ["0001-sites-nt-testgs-map-in-repo.patch"]
+    patches = sorted(p.name for p in (ROOT / "vendor" / "patches" / "drone-sitl").glob("*.patch"))
+    assert rec["patches"].split() == patches
+    assert "0002-agent-container-name-drone-sim.patch" in patches
 
 
 def test_the_scripts_flight_service_runs_are_executable():
