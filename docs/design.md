@@ -101,6 +101,25 @@ curl -s -o clip.mp4 $R/jobs/<id>/files/detections.mp4
 - **Retention:** เก็บ `data/runs/` รวม ≤ `DATA_RETENTION_GB` (10 GB ≈ 280 รอบ) ลบรอบเก่าสุดก่อน (0 = ไม่ลบ) · image และ container ลบหมดทุกครั้ง แต่ข้อมูลเก็บ
 - ข้อจำกัด: runner โดน SIGKILL กลางบิน journal ครบ แต่ mp4 อาจเล่นไม่ได้ (index เขียนตอนปิดไฟล์) · ไฟดับเสียข้อมูลได้ ≤ 1 s
 
+### Docker image และไฟล์ ใครสร้าง ใครลบ
+
+| ของ | เกิดตอน | ลบเมื่อ |
+|---|---|---|
+| image จาก registry | ตรวจ manifest (≤ `MAX_IMAGE_GB`, ดิสก์เหลือ ≥ `MIN_FREE_GB`) แล้ว drone-sitl pull + tag `submission-<ชื่อ>-<เวลา>` | cleanup: `rmi` tag ของงาน + ชื่อต้นทาง**ถ้าก่อนงานไม่มีในเครื่อง** (`image_preexisting`) · kill กลาง pull: หยุด `docker pull` + กวาด tag ที่ติดทีหลัง |
+| ไฟล์ upload `data/uploads/<job>.tar` | รับผ่าน `POST /jobs` ที่ไม่ใช่ JSON | **ทันทีหลัง load/build** (ไม่รอบินจบ) · ตอน service เริ่มลบที่ค้างทั้งหมด |
+| image จาก upload แบบ image | `docker load` (ชื่อใน tar ต้องไม่ชนของที่มี) แล้ว tag ของเราเอง | cleanup: `rmi` tag ของเรา + ชื่อเดิมใน tar |
+| image จาก bundle | drone-sitl build | cleanup: `rmi` tag ของงาน |
+| container ของ agent (`drone-sim`) | `docker run --rm` | จบเองตอน agent ออก · cleanup `rm -f` ทุก container ที่ `ancestor=<tag ของงาน>` |
+| `data/runs/<job>/` | journal ระหว่างบิน + finalize ตอนจบ | retention (ด้านบน) เท่านั้น |
+| สำเนาผลฝั่งผู้เรียก `<--out>/<job>/` | `flight.py` ดาวน์โหลดตอนจบ | ไม่มีใครลบ (ของผู้เรียก) |
+
+`KEEP_IMAGE=1` ข้ามการ `rmi` ทั้งหมด · ไม่ใช้ `docker prune` เลย เพื่อไม่แตะของคนอื่น
+
+**ของที่ไม่มีใครลบ (ยังไม่แก้ ไปออกแบบรวมกับ wishlist ข้อ 4):**
+- image `submission-*` ที่เกิดจากหน้าเว็บ drone-sitl หรือรันมือ (ไม่ใช่งานของ service) · ตรวจ 2026-10-16: tag ของทั้ง 31 งานใน `data/runs/` ไม่เหลือสักตัว ที่ค้างมาจากทางอื่นทั้งหมด
+- `vendor/drone-sitl/recordings/` คลิปต้นฉบับของ det_recorder (finalize copy ไปแล้ว ต้นฉบับยังอยู่)
+- `vendor/drone-sitl/logs/docker-agents/` bundle ทุกตัวที่เคย build (followups M4)
+
 ## 6. Timeout และค่าที่ตั้งได้ (env)
 
 | ค่า | default | ค่า | default |
