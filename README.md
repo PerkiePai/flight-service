@@ -280,6 +280,18 @@ export FLIGHT_URL=http://192.168.20.141:8095     # ถ้าไม่ตั้�
 
 `partial: true` = งานไม่ได้จบเอง (kill, timeout, error, runner restart) · score v0 = 100 × F1 ของ "เจอรถจริงกี่คัน" กับ "กล่องที่ขึ้นตอนอยู่ใกล้รถจริง" (docs/design.md หัวข้อ 5)
 
+## สเปกโดรน
+
+ตั้งครั้งเดียวใน `.env` ใช้กับ**ทุกงาน** (ยังเลือกเป็นรายงานไม่ได้) แล้ว restart service · ค่าเป็น Python literal ส่งต่อถึง `drone_setup_px4_cesium.py` ทาง `DRONE_SETUP_<ชื่อ>` · ค่าที่ตั้งได้และค่าปัจจุบันอยู่ใน `.env.example` หมวด "สเปกโดรน"
+
+| เปลี่ยนผ่าน `.env` ได้ | ต้องทำ vendor patch (`vendor/README.md`) |
+|---|---|
+| ลม (`ADD_WIND` `WIND_*`) · จุดขึ้นบินและทิศ (`SPAWN_XYZ` `HEADING_DEG`) · ความละเอียดคลิป (`REC_W/H/FPS`) · การยึดกล้องล่าง (`DOWN_Z_OFFSET` `DOWN_VIB_DAMP`) | เลนส์/เซนเซอร์กล้อง (ZED X One GS 2.2 mm) · ความสูง takeoff 5 m และความเร็วสูงสุด 3 m/s (`joystick-server.py`) · ฟิสิกส์โดรน (Pegasus `MultirotorConfig`) · airframe PX4 (`gazebo-classic_iris`) |
+
+- เช็กว่าค่าถูกใช้จริง: `vendor/drone-sitl/logs/launch-sitl.console` มีบรรทัด `>>> override <ชื่อ> = <ค่า>` · ชื่อผิดจะขึ้น `no tunable named ...` แล้วข้ามไป
+- agent ของทีมเปลี่ยนสเปกเองไม่ได้ (สั่งได้แค่ความเร็ว/เส้นทางผ่าน `competition/commands.py`)
+- **ทุกทีมต้องบินสเปกเดียวกัน** ไม่งั้นคะแนนเทียบกันไม่ได้ (โดยเฉพาะกล้อง) · ถ้าเปิดลมให้ตั้ง `WIND_SEED` เพื่อให้ลมเหมือนกันทุกรอบ
+
 ## ข้อมูลย้อนหลัง
 
 `data/runs/<job_id>/` เก็บทุกไฟล์ข้างบน + `job.json` · เปิดดูผ่าน `GET /jobs` และ `/files/*` · เกิน `DATA_RETENTION_GB` จะลบงานที่จบแล้วเก่าสุดก่อน (ไม่แตะงานที่ยังไม่จบ)

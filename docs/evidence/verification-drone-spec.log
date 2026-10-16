@@ -1,0 +1,35 @@
+# wishlist 5: drone spec via .env -- real run 2026-10-16
+# service started with DRONE_SETUP_ADD_WIND=True DRONE_SETUP_WIND_SEED=7 (env only, .env untouched)
+# job j-20261016-162825-985f  perkiepai/truck-detector:20261009
+
+## vendor/drone-sitl/logs/launch-sitl.console
+>>> override ADD_WIND = True
+>>> override HEADING_DEG = 0.0
+>>> override SPAWN_XYZ = [4.7762, -19.3996, 6.4826]
+>>> override WIND_SEED = 7
+[WIND]  4.7 m/s FROM    29° (NE)  force=(-0.0,+0.0,-0.0) N  agl=0.0 m  (below 1.0 m — inactive)
+[WIND]  6.1 m/s FROM   359° ( N)  force=(+0.0,+0.0,-0.0) N  agl=-0.4 m  (below 1.0 m — inactive)
+[WIND]  5.3 m/s FROM   332° (NW)  force=(-0.0,+0.0,-0.0) N  agl=-0.4 m  (below 1.0 m — inactive)
+
+## flight.py
+16:31:05 failed (agent_crashed: agent exited (1)); score 47.3; flew 108.48s; files in /tmp/claude-1000/-home-innovation-pai-flight-service/44e9af84-725a-40e9-a903-8f32e995022f/scratchpad/spec-run/j-20261016-162825-985f
+{"job_id": "j-20261016-162825-985f", "state": "failed", "reason": "agent_crashed", "score": 47.3, "out_dir": "/tmp/claude-1000/-home-innovation-pai-flight-service/44e9af84-725a-40e9-a903-8f32e995022f/scratchpad/spec-run/j-20261016-162825-985f", "not_downloaded": []}
+
+## agent (panel.log tail)
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+agent exited (1)
+
+## kernel (journalctl -k): GPU dropped off the bus 8 s before the agent's CUDA error
+Oct 16 16:30:52 innovation-MS-7E34 kernel: NVRM: Xid (PCI:0000:02:00): 79, GPU has fallen off the bus.
+Oct 16 16:30:52 innovation-MS-7E34 kernel: NVRM: GPU 0000:02:00.0: GPU has fallen off the bus.
+Oct 16 16:30:52 innovation-MS-7E34 kernel: NVRM: Xid (PCI:0000:02:00): 154, GPU recovery action changed from 0x0 (None) to 0x2 (Node Reboot Required)
+
+## nvidia-smi afterwards
+Unable to determine the device handle for GPU0: 0000:02:00.0: Unknown Error
+No devices were found
+
+## wind once airborne (first / mid-flight)
+[WIND]  7.7 m/s FROM   330° (NW)  force=(-5.0,-2.8,-0.0) N  agl=1.1 m  (ACTIVE)
+[WIND]  4.7 m/s FROM   349° ( N)  force=(-0.6,+2.9,-0.0) N  agl=39.6 m  (ACTIVE)
