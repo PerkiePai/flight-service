@@ -1,3 +1,5 @@
+> **ประวัติ ไม่ใช่สถานะปัจจุบัน:** เอกสารนี้เก็บไว้เป็นหลักฐานของงานที่ทำเสร็จแล้ว ไม่ได้อัปเดตตามโค้ด (เช่นยังพูดถึง `RUNNER_TOKEN` ที่ถอดแล้ว) สถานะจริงดู [../design.md](../../../design.md) และ [../progress.md](../../../progress.md)
+
 # Remove RUNNER_TOKEN Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -8,7 +8,8 @@ sequenceDiagram
     participant AG as Agent container
 
     Note over W,AG: งานกำลังบิน (state = flying)<br/>journal ถูกเขียนต่อเนื่องทุกเฟรม
-    PT->>API: POST /jobs/{id}/kill
+    Note over PT,API: ผู้เรียกอาจตามสดอยู่ทาง GET /jobs/{id}/stream<br/>(Ctrl-C ที่ flight.py ไม่ kill งาน · ต้องสั่ง kill เอง)
+    PT->>API: POST /jobs/{id}/kill (หรือ flight.py kill {id})
     API->>W: kill(job)
     W->>W: ยกเลิกขั้นที่ทำอยู่
     W->>DS: WS {"action":"stop"}
@@ -19,6 +20,7 @@ sequenceDiagram
     W->>DS: docker rm -f + stop-website.sh
     W->>W: docker rmi image ของงานนี้
     W->>FS: state=killed
+    API-->>PT: (สาย stream ที่เปิดอยู่) event: end {state:"killed", result:{partial:true}} แล้วปิดสาย
     API-->>PT: 200 {state:"killed", failed_in:"flying", result:{partial:true, ended_by:"kill", files}}
     Note over PT,API: ถ้าเกิน 60 s ตอบ 202 แทน แล้วให้ poll GET /jobs/{id} ต่อ
     PT->>API: GET /jobs/{id}/files/telemetry.jsonl

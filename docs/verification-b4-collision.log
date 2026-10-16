@@ -1,8 +1,0 @@
->>> upload /tmp/claude-1000/-home-innovation-pai-flight-service/71073dc6-b4b5-4aee-9f58-1f3ed5b76634/scratchpad/hw.tar (31232 bytes) kind=image
-{"job_id":"j-20261005-043015-9deb","state":"queued","source":"upload"}
-202 0.007390s
->>> upload took 0 s
-04:30:15 loading
-04:30:20 failed
-{"job_id": "j-20261005-043015-9deb", "state": "failed", "failed_in": "loading", "reason": "archive_rejected", "detail": "archive names docker.io/library/hello-world:latest, which already exists on this box", "image_tag": null}
-{"ended_by": "error", "partial": true, "flight_s": 0.0, "distance_m": 0.0, "score": {"version": "v0", "score": 0.0, "recall": 0.0, "precision": 0.0, "trucks_found": 0, "trucks_total": 3}, "missing": ["detections.mp4", "meta.json"]}

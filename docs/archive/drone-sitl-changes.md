@@ -1,3 +1,5 @@
+> **ประวัติ ไม่ใช่สถานะปัจจุบัน:** เอกสารนี้เก็บไว้เป็นหลักฐานของงานที่ทำเสร็จแล้ว ไม่ได้อัปเดตตามโค้ด (เช่นยังพูดถึง `RUNNER_TOKEN` ที่ถอดแล้ว) สถานะจริงดู [../design.md](../design.md) และ [../progress.md](../progress.md)
+
 > **ตั้งแต่ 2026-10-06** flight-service รันจากสำเนาใน `vendor/drone-sitl/` (commit `2945783` ซึ่งรวมการแก้ทั้ง 3 ครั้งด้านล่างแล้ว) · การแก้ drone-sitl ต้นทางหลังจากนี้มีผลกับ flight-service ก็ต่อเมื่อซิงก์เข้ามา (`vendor/README.md`)
 
 # แก้ drone-sitl ที่อนุมัติแล้ว — 2026-10-05: `DRONE_SITL_DOCKER_RUN_ARGS` สำหรับ `docker run` ของ agent

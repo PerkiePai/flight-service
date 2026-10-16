@@ -1,0 +1,4 @@
+*.tar
+*.md
+__pycache__/
+build.sh

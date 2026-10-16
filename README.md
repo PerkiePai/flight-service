@@ -4,7 +4,28 @@
 ทำทีละ 1 งาน (+ ช่องรอ 1 งาน) · คิวหลักอยู่ที่ระบบของผู้เรียก · ทุกข้อมูลเขียนเป็น journal ทันทีที่ได้ จบทางไหน (รวม kill) ก็ได้ผลรูปแบบเดียว
 ทุกงานบูต sim ใหม่และปิดเมื่อจบ ลบ image/container ที่งานนำเข้ามา แต่เก็บข้อมูลไว้ดูย้อนหลัง (≤ 10 GB)
 
-เอกสารละเอียด: [docs/api.md](docs/api.md) (API + diagram) · [docs/design.md](docs/design.md) · [docs/verification.md](docs/verification.md) (ผลทดสอบจริง)
+เอกสารละเอียด: [docs/design.md](docs/design.md) (design + API + diagram) · [docs/progress.md](docs/progress.md) · งานค้าง: [docs/followups.md](docs/followups.md) · log การรันจริง: [docs/evidence/](docs/evidence/) · compose ของ submission เทียบกับของจริง: [docs/reference/](docs/reference/) · แผนและสเปกเก่าที่ทำเสร็จแล้ว: [docs/archive/](docs/archive/)
+
+**หัวข้อ**
+
+- [ติดตั้ง (ครั้งแรก)](#ติดตั้ง-ครั้งแรก)
+  - [ย้ายไปเครื่องใหม่](#ย้ายไปเครื่องใหม่)
+- [เปิด / ปิด](#เปิด--ปิด)
+- [เรียก API](#เรียก-api)
+  - [1. เช็กว่าส่งงานได้ไหม](#1-เช็กว่าส่งงานได้ไหม)
+  - [2. ส่งงานจากชื่อ image (registry)](#2-ส่งงานจากชื่อ-image-registry)
+  - [3. ส่งไฟล์ image แทนชื่อ image](#3-ส่งไฟล์-image-แทนชื่อ-image)
+  - [4. ดูสถานะ / กลับมาตามงานเดิม](#4-ดูสถานะ--กลับมาตามงานเดิม)
+  - [5. ติดตามสด (Server-Sent Events)](#5-ติดตามสด-server-sent-events)
+  - [6. หยุดงาน (kill)](#6-หยุดงาน-kill)
+  - [7. โหลดไฟล์ผล](#7-โหลดไฟล์ผล)
+  - [รายละเอียดของ `scripts/flight.py`](#รายละเอียดของ-scriptsflightpy)
+  - [state ของงาน](#state-ของงาน)
+  - [ผลที่ได้](#ผลที่ได้)
+- [ข้อมูลย้อนหลัง](#ข้อมูลย้อนหลัง)
+- [ความปลอดภัยและข้อจำกัด](#ความปลอดภัยและข้อจำกัด)
+- [แก้ปัญหา](#แก้ปัญหา)
+- [เทสต์](#เทสต์)
 
 ## ติดตั้ง (ครั้งแรก)
 
@@ -13,7 +34,6 @@
 ```bash
 cd ~/pai/flight-service
 cp .env.example .env
-chmod 600 .env
 ```
 
 ค่าใน `.env` ที่ใช้บ่อย (ดูทั้งหมดใน `flight_service/config.py`):
@@ -46,7 +66,7 @@ repo นี้พก drone-sitl ส่วนที่ใช้มาด้วย
 3. image ฐานของ bundle: `cd vendor/drone-sitl && docker build -t competition-base:latest -f docker/competition-base/Dockerfile .`
 4. `cp .env.example .env` (แก้ path ข้างบนถ้าไม่ตรง default)
 5. `./scripts/preflight.sh` จนขึ้น `preflight: ready` (ทุกข้อที่ไม่ผ่านมีบรรทัด `fix:` บอกวิธี)
-6. `./scripts/run-service.sh` แล้วลองด้วย `./scripts/mock-caller.sh <image>`
+6. `./scripts/run-service.sh` แล้วลองด้วย `./scripts/flight.py run <image>` (ดูหัวข้อ client)
 
 ## เปิด / ปิด
 
@@ -60,9 +80,7 @@ repo นี้พก drone-sitl ส่วนที่ใช้มาด้วย
 
 ## เรียก API
 
-```bash
-export R=http://127.0.0.1:8095
-```
+ตัวอย่างทั้งหมดเรียกที่ `http://192.168.20.141:8095` (ต้องตั้ง `RUNNER_HOST` ให้ service ฟังที่ IP นี้ ดูหัวข้อติดตั้ง · เรียกจากเครื่องเดียวกับ service ใช้ `127.0.0.1` แทนได้) · copy ไปวางได้เลย
 
 | method | path | หน้าที่ |
 |---|---|---|
@@ -75,51 +93,141 @@ export R=http://127.0.0.1:8095
 | `POST` | `/kill` | เหมือนข้างบนแต่ไม่ต้องระบุ id: หยุดงานที่กำลังบิน (ไม่มี → งานที่รอคิวถัดไป · ไม่มีเลย → `409`) ไม่แตะงานอื่นในคิว |
 | `GET` | `/jobs/{id}/files/{name}` | ดาวน์โหลดไฟล์ผล |
 
-```bash
-curl -s $R/healthz
-# {"ok":true,"ready":true,"phase":"idle","pending":0}     ready = POST ตอนนี้จะถูกรับ
+เรียกได้ 2 วิธี ผลเหมือนกัน: **curl** ยิงทีละ endpoint ตรง ๆ · **`scripts/flight.py`** (ไฟล์เดียว ใช้แค่ Python 3.8+ copy ไปเครื่องผู้เรียกได้เลย) ทำหลายขั้นให้ในคำสั่งเดียว ด้านล่างเขียนคู่กันทีละงาน พร้อมผลตอนสำเร็จ (ผลจริงจากงาน `j-20261006-083909-c92b` · `...` = ย่อบรรทัดที่ยาว)
 
-curl -s -X POST $R/jobs -H 'Content-Type: application/json' \
+### 1. เช็กว่าส่งงานได้ไหม
+
+| curl | flight.py |
+|---|---|
+| `curl http://192.168.20.141:8095/healthz` | `scripts/flight.py health` |
+
+```
+{"ok":true,"ready":true,"phase":"idle","pending":0}        ← curl      ready = POST ตอนนี้จะถูกรับ
+{"ok": true, "ready": true, "phase": "idle", "pending": 0}  ← flight.py  exit 0 = ส่งงานได้
+```
+
+### 2. ส่งงานจากชื่อ image (registry)
+
+**curl**: ส่งงานอย่างเดียว ได้ `job_id` กลับมา ที่เหลือ (ตามผล, โหลดไฟล์) ต้องยิงเองตามข้อ 3–6
+
+```bash
+curl -X POST http://192.168.20.141:8095/jobs -H 'Content-Type: application/json' \
      -d '{"image":"perkiepai/truck-detector:20260929-214240","flight_timeout_s":600}'
-# 202 {"job_id":"j-20261005-033950-b5fa","state":"queued","source":"registry"}
-# 409 {"detail":"busy","current_job":"...","pending":["..."]}   ช่องรอเต็ม → เก็บไว้ในคิวของคุณ รอ ready แล้วส่งใหม่
-# 503 {"detail":"degraded"}                                      ต้องมีคนแก้ (ดูหัวข้อแก้ปัญหา)
-
-curl -s $R/jobs/j-20261005-033950-b5fa                  # poll ทุก 1–5 s
-curl -sN $R/jobs/j-20261005-033950-b5fa/stream          # หรือติดตามสด: event state / telemetry / end (docs/api.md)
-curl -s -X POST $R/kill                                  # ไม่ต้องรู้ id: หยุดงานที่กำลังบิน
-curl -s -X POST $R/jobs/j-20261005-033950-b5fa/kill     # 200 = จบแล้วพร้อมผล · 202 = ยังเก็บกวาดอยู่ ให้ poll ต่อ
-curl -s -o clip.mp4 $R/jobs/j-20261005-033950-b5fa/files/detections.mp4
+```
+```
+202 {"job_id":"j-20261006-083909-c92b","state":"queued","source":"registry"}
+409 {"detail":"busy","current_job":"...","pending":["..."]}   ช่องรอเต็ม → เก็บไว้ในคิวของคุณ รอ ready แล้วส่งใหม่
+503 {"detail":"degraded"}                                      ต้องมีคนแก้ (ดูหัวข้อแก้ปัญหา)
 ```
 
-### ส่งไฟล์ image แทนชื่อ image
-
-endpoint เดียวกัน (`POST /jobs`) ส่งเป็นไฟล์ด้วย `curl -T` (stream ไม่โหลดเข้า RAM · ห้ามใช้ `--data-binary`) พร้อม `?kind=&name=`
+**flight.py**: รอ `ready` → ส่งงาน → ตามสดจนจบ → โหลดไฟล์ผลลง `flight-out/<job_id>/` ในคำสั่งเดียว (เปลี่ยนที่เก็บด้วย `--out DIR`)
 
 ```bash
-# ผลของ docker save (.tar หรือ .tar.gz) · ≤ 16 GB · ชื่อ image ในไฟล์ต้องยังไม่มีบนเครื่อง
-docker save my-agent:1 -o agent.tar
-curl -s -X POST -T agent.tar "$R/jobs?kind=image&name=my-agent&flight_timeout_s=600"
-
-# build bundle: tar ที่มี Dockerfile (FROM competition-base) + โค้ด · ≤ 200 MB · ไฟล์ธรรมดาเท่านั้น (ไม่มี symlink)
-curl -s -X POST -T bundle.tar "$R/jobs?kind=bundle&name=my-agent"
+scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600
+```
+ความคืบหน้าออกทาง stderr:
+```
+08:39:09 job j-20261006-083909-c92b accepted
+08:39:09 state pulling
+08:39:16 state booting
+08:39:49 state flying
+08:39:49 flying alt=0.0 lat=14.0283445 lon=100.4364646 mode=AUTO.LOITER agent=idle
+08:40:04 flying alt=4.4 lat=14.0283442 lon=100.4364649 mode=OFFBOARD agent=running
+...
+08:48:03 state done
+08:48:03 done; score 97.0; flew 487.46s; files in flight-out/j-20261006-083909-c92b
+```
+stdout บรรทัดเดียวเป็น JSON ให้โปรแกรมอ่าน · exit code `0` = `done`:
+```
+{"job_id": "j-20261006-083909-c92b", "state": "done", "reason": null, "score": 97.0, "out_dir": "flight-out/j-20261006-083909-c92b", "not_downloaded": []}
 ```
 
-ไม่ผ่าน: `409` ช่องรอเต็ม (ไม่รับไฟล์) · `411` ไม่มี Content-Length · `413` ใหญ่เกิน · `507` ดิสก์ไม่พอ · `408` ไม่มีข้อมูลเข้ามา 60 s · ไฟล์ผิดรูปแบบ/ชื่อชน/มี link → งาน `failed` ด้วย `archive_rejected`
+### 3. ส่งไฟล์ image แทนชื่อ image
 
-### client สำเร็จรูป: `scripts/flight.py`
+endpoint เดียวกับข้อ 2 (`POST /jobs`) ส่งเป็นไฟล์ด้วย `curl -T` (stream ไม่โหลดเข้า RAM · ห้ามใช้ `--data-binary`) พร้อม `?kind=&name=` · ผลเมื่อรับแล้วเหมือนข้อ 2 (`202`, `"source":"upload"`)
 
-ไฟล์เดียว ใช้แค่ Python 3.8+ (ไม่ต้องติดตั้งอะไร) copy ไปเครื่องผู้เรียกได้เลย · ส่งงาน → ตามสดทาง stream → ดึงไฟล์ผล → บอกผลด้วย exit code
+| curl | flight.py |
+|---|---|
+| `curl -X POST -T agent.tar "http://192.168.20.141:8095/jobs?kind=image&name=my-agent&flight_timeout_s=600"` | `scripts/flight.py run --file agent.tar --kind image --name my-agent --timeout 600` |
+| `curl -X POST -T bundle.tar "http://192.168.20.141:8095/jobs?kind=bundle&name=my-agent"` | `scripts/flight.py run --file bundle.tar --kind bundle --name my-agent` |
+
+- `kind=image`: ผลของ `docker save my-agent:1 -o agent.tar` (`.tar` หรือ `.tar.gz`) · ≤ 16 GB · ชื่อ image ในไฟล์ต้องยังไม่มีบนเครื่อง
+- `kind=bundle`: tar ที่มี `Dockerfile` (FROM competition-base) + โค้ด · ≤ 200 MB · ไฟล์ธรรมดาเท่านั้น (ไม่มี symlink)
+- ไม่ผ่าน: `409` ช่องรอเต็ม (ไม่รับไฟล์) · `411` ไม่มี Content-Length · `413` ใหญ่เกิน · `507` ดิสก์ไม่พอ · `408` ไม่มีข้อมูลเข้ามา 60 s · ไฟล์ผิดรูปแบบ/ชื่อชน/มี link → งาน `failed` ด้วย `archive_rejected`
+
+### 4. ดูสถานะ / กลับมาตามงานเดิม
+
+| curl | flight.py |
+|---|---|
+| `curl http://192.168.20.141:8095/jobs/j-20261006-083909-c92b` (poll ทุก 1–5 s) | `scripts/flight.py watch j-20261006-083909-c92b` |
+
+curl ตอบ JSON ครั้งเดียว (ย่อ):
+```
+{"job_id":"j-20261006-083909-c92b","state":"done","source":"registry","image":"perkiepai/truck-detector:20260929-214240",
+ "created_at":"2026-10-06T08:39:09+0700","state_since":"2026-10-06T08:48:03+0700","failed_in":null,"reason":null,
+ "detail":"DONE logged; runner stopped the agent","score_live":{"rows":1263,"trucks_found":3,"trucks_total":3},
+ "result":{"ended_by":"agent","partial":false,"outcome":"done","flight_s":487.46,"distance_m":560.2,"max_alt_m":40.2,
+          "score":{"version":"v0","score":97.0,"recall":1.0,"precision":0.941,"trucks_found":3,"trucks_total":3},"files":{...},"missing":[]},...}
+```
+flight.py ตามงานต่อ (งานที่ยังบินอยู่จะเห็นบรรทัดความคืบหน้าต่อเนื่องเหมือนข้อ 2) แล้วโหลดไฟล์ให้ ถ้างานจบแล้วได้ทันที:
+```
+13:34:16 state done
+13:34:16 done; score 97.0; flew 487.46s; files in flight-out/j-20261006-083909-c92b
+{"job_id": "j-20261006-083909-c92b", "state": "done", "reason": null, "score": 97.0, "out_dir": "flight-out/j-20261006-083909-c92b", "not_downloaded": []}
+```
+
+### 5. ติดตามสด (Server-Sent Events)
+
+**curl**: `curl -N http://192.168.20.141:8095/jobs/j-20261006-083909-c92b/stream` · ต่อใหม่หลังสายขาด: เพิ่ม `-H 'Last-Event-ID: <เลขบรรทัดล่าสุดที่ได้>'`
+**flight.py**: ไม่มีคำสั่งแยก `run` และ `watch` ใช้ stream นี้เอง ต่อใหม่จากบรรทัดล่าสุดเอง และเปลี่ยนไป poll เมื่อ stream ใช้ไม่ได้
+
+```
+event: state
+data: {"state":"done","since":"2026-10-06T08:48:03+0700","reason":null}
+
+id: 1
+event: telemetry
+data: {"connected":true,"armed":false,"mode":"AUTO.LOITER","alt_m":0.0071,"lat":14.0283445,"lon":100.4364646,...}
+
+...                                                   (หนึ่ง event ต่อหนึ่งบรรทัดของ telemetry.jsonl · 5 Hz)
+
+event: end
+data: {"job_id":"j-20261006-083909-c92b","state":"done","failed_in":null,"reason":null,"detail":"DONE logged; runner stopped the agent","result":{...}}
+```
+(ตอนงานยังบินอยู่ event แรกคือ `"state":"flying"` · server ปิดสายหลัง `end`)
+
+### 6. หยุดงาน (kill)
+
+| curl | flight.py |
+|---|---|
+| `curl -X POST http://192.168.20.141:8095/kill` (งานที่กำลังบิน · ไม่ต้องรู้ id) | `scripts/flight.py kill` |
+| `curl -X POST http://192.168.20.141:8095/jobs/j-20261006-083909-c92b/kill` | `scripts/flight.py kill j-20261006-083909-c92b` |
+
+`200` = จบแล้วพร้อมผล · `202` = ยังเก็บกวาดอยู่ ให้ poll ต่อ · `409` = ไม่มีงานให้หยุด / งานจบไปแล้ว
+
+curl ตอบงานทั้งก้อน (ย่อ · ตัวอย่างจริงตอน kill ระหว่างบิน):
+```
+{"state":"killed","failed_in":"flying","reason":"killed","detail":"killed while flying",
+ "result":{"ended_by":"kill","partial":true,"flight_s":91.6,"distance_m":25.5,"score":{"version":"v0","score":79.8,...},"missing":[]},...}
+```
+flight.py พิมพ์บรรทัดเดียว: `{"job_id": "<id>", "state": "killed", "reason": "killed"}`
+
+### 7. โหลดไฟล์ผล
+
+| curl | flight.py |
+|---|---|
+| `curl -o clip.mp4 http://192.168.20.141:8095/jobs/j-20261006-083909-c92b/files/detections.mp4` (ทีละไฟล์) | ไม่ต้องทำ: `run` / `watch` โหลดให้ทุกไฟล์ |
+
+หลัง `run` / `watch` สำเร็จ `ls flight-out/j-20261006-083909-c92b`:
+```
+analysis.txt  detections.jsonl  detections.mp4  events.jsonl  job.json  meta.json  panel.log  result.json  score.json  telemetry.jsonl  track.jsonl
+```
+งานที่ยังบินอยู่ดึงได้เฉพาะ journal (`telemetry.jsonl`, `events.jsonl`, `detections.jsonl`) ที่เหลือมีหลังจบ · รายละเอียดไฟล์ดูหัวข้อ "ผลที่ได้"
+
+### รายละเอียดของ `scripts/flight.py`
 
 ```bash
-export FLIGHT_URL=http://127.0.0.1:8095     # ไม่ตั้งก็ได้ถ้าเรียกจากเครื่องเดียวกับ service (default ตัวนี้)
-
-scripts/flight.py health                                   # {"ok": true, "ready": true, ...}  exit 0 = ส่งงานได้
-scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600 --out results
-scripts/flight.py run --file agent.tar --kind image --name my-agent      # ส่งไฟล์แทนชื่อ image (bundle: --kind bundle)
-scripts/flight.py watch j-20261005-033950-b5fa --out results             # กลับมาตามงานเดิม เช่นหลัง client ถูกปิด
-scripts/flight.py kill                       # งานที่กำลังบิน (ไม่ต้องใส่ id)
-scripts/flight.py kill j-20261005-033950-b5fa   # หรือระบุ id
+export FLIGHT_URL=http://192.168.20.141:8095     # ถ้าไม่ตั้ง ใช้ http://127.0.0.1:8095 (เรียกจากเครื่องเดียวกับ service) · หรือส่ง --url ต่อคำสั่ง
 ```
 
 | exit code ของ `run` / `watch` | ความหมาย |
@@ -134,7 +242,7 @@ scripts/flight.py kill j-20261005-033950-b5fa   # หรือระบุ id
 - สายขาด: ต่อใหม่เองจากบรรทัดล่าสุดที่ได้ · ไม่ได้ stream เกิน 60 s หรือ service รุ่นเก่า: เปลี่ยนไป poll เอง
 - ไฟล์ผล: `<out>/<job_id>/job.json` + ทุกไฟล์ในหัวข้อ "ผลที่ได้" ด้านล่าง
 
-`scripts/mock-caller.sh` (สคริปต์ทดสอบรุ่นแรก ใช้ poll) ยังอยู่: `./scripts/mock-caller.sh <image> [flight_timeout_s]` ผลอยู่ใน `mock-out/<job_id>/`
+`scripts/mock-caller.sh` (สคริปต์ทดสอบรุ่นแรก ใช้ poll · `flight.py` ใช้แทนได้ทั้งหมด เก็บไว้จนกว่าเจ้าของบอกให้ลบ) ยังอยู่: `./scripts/mock-caller.sh <image> [flight_timeout_s]` ผลอยู่ใน `mock-out/<job_id>/`
 
 ### state ของงาน
 
@@ -170,7 +278,7 @@ scripts/flight.py kill j-20261005-033950-b5fa   # หรือระบุ id
 | `detections.mp4` · `meta.json` | คลิปกล้องของ agent พร้อมกล่อง | ตอนจบ |
 | `score.json` · `result.json` · `analysis.txt` | score v0 ละเอียด · ผลสรุป · ผลตรวจเทียบรถจริง | ตอนจบ |
 
-`partial: true` = งานไม่ได้จบเอง (kill, timeout, error, runner restart) · score v0 = 100 × F1 ของ "เจอรถจริงกี่คัน" กับ "กล่องที่ขึ้นตอนอยู่ใกล้รถจริง" (design 9.1)
+`partial: true` = งานไม่ได้จบเอง (kill, timeout, error, runner restart) · score v0 = 100 × F1 ของ "เจอรถจริงกี่คัน" กับ "กล่องที่ขึ้นตอนอยู่ใกล้รถจริง" (docs/design.md หัวข้อ 5)
 
 ## ข้อมูลย้อนหลัง
 
@@ -181,7 +289,7 @@ scripts/flight.py kill j-20261005-033950-b5fa   # หรือระบุ id
 - ไม่มี login (ผู้เรียกเป็นคนใน; service bind 127.0.0.1) · allowlist ของ image · จำกัดเวลาบิน · จำกัดขนาด image 16 GB และดิสก์ว่าง ≥ 40 GB
 - container ของผู้แข่งรันด้วย `--memory 24g --pids-limit 1024 --cap-drop ALL --security-opt no-new-privileges -e TZ=Asia/Bangkok` (ผ่าน `DRONE_SITL_DOCKER_RUN_ARGS` ของ drone-sitl)
 - **รับงานได้ทาง API นี้เท่านั้น:** ตอนที่ service เปิดเว็บ drone-sitl (`:8090`) การอัปโหลด/pull ที่หน้าเว็บนั้นตรง ๆ ได้ `403` (ใช้ token ที่ service สุ่มใหม่ทุกครั้งที่เริ่ม)
-- **ยังเสี่ยง:** container ใช้ `--network host` จึงเข้าถึง service อื่นบนเครื่องได้ (design 8) · ไม่มี TLS
+- **ยังเสี่ยง:** container ใช้ `--network host` จึงเข้าถึง service อื่นบนเครื่องได้ (docs/design.md หัวข้อ 7) · ไม่มี TLS
 - ถ้า service ถูกปิดกลางบิน คลิป MP4 ของงานนั้นอาจไม่มี (journal ครบ) · kill/timeout ระหว่าง pull: service หยุด `docker pull` ที่ค้างและลบสิ่งที่ pull มาให้ · `/ws` หลุดชั่วคราว: ต่อใหม่ภายใน 10 s แล้วติดตามการบินต่อ
 
 ## แก้ปัญหา

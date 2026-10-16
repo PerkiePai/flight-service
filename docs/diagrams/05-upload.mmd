@@ -7,7 +7,7 @@ sequenceDiagram
     participant DS as drone-sitl (:8090 + scripts)
     participant DK as Docker engine
 
-    PT->>API: POST /jobs?kind=image&name=truck (curl -T truck.tar)
+    PT->>API: POST /jobs?kind=image&name=truck (curl -T truck.tar · หรือ flight.py run --file truck.tar --kind image)
     API->>API: token + ช่องรอว่าง + Content-Length ≤ 16 GB + ดิสก์พอ
     alt ไม่ผ่าน
         API-->>PT: 409 ช่องรอเต็ม / 411 / 413 / 507 (ไม่รับไฟล์)
@@ -31,4 +31,4 @@ sequenceDiagram
         DS-->>W: image_tag
     end
     W->>FS: ลบ upload.tar ทันที
-    Note over W,DS: ต่อจากนี้เหมือนกรณีปกติ: booting → flying → finalize → cleanup
+    Note over W,DS: ต่อจากนี้เหมือนกรณีปกติ: booting → flying → finalize → cleanup<br/>ผู้เรียกตามสดทาง GET /jobs/{id}/stream ได้เหมือนกัน (ดู 01-happy-path)

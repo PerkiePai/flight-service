@@ -1,6 +1,6 @@
 sequenceDiagram
     autonumber
-    participant PT as ระบบคิวพี่ต้น
+    participant PT as ระบบคิวพี่ต้น / flight.py
     participant API as flight-service API
     participant W as Worker
     participant FS as data/runs/<id>
@@ -9,12 +9,16 @@ sequenceDiagram
     participant SIM as Isaac Sim + PX4
     participant AG as Agent container
 
+    Note over PT,API: ใช้ curl เองหรือ scripts/flight.py run <image> ก็ได้<br/>flight.py ทำให้ทั้งชุด: รอ ready → POST /jobs → ตามสดทาง stream → โหลดไฟล์ผล
     PT->>API: GET /healthz
     API-->>PT: 200 {ok:true, ready:true, phase:"idle"}
     PT->>API: POST /jobs {"image":"perkiepai/truck:1","flight_timeout_s":600}
     API->>API: token + ช่องรอว่าง + allowlist
     API-->>PT: 202 {job_id, state:"queued"}
     API->>W: เริ่มงาน
+    PT->>API: GET /jobs/{id}/stream (SSE ค้างสายไว้)
+    API-->>PT: event: state {state:"queued"} (ส่งทันทีที่ต่อเข้ามา)
+    Note over PT,API: ต่อจากนี้ทุกครั้งที่ state เปลี่ยน (pulling → booting → flying → ...) ได้ event: state<br/>เงียบเกิน 15 s ได้ ": ping"
     W->>FS: RUNNING + events.jsonl (queued → pulling)
     W->>DS: run-website.sh (SKIP_SIM=1) เปิดเว็บอย่างเดียว
     W->>DS: POST /agent/pull-docker?ref=perkiepai/truck:1
@@ -33,10 +37,11 @@ sequenceDiagram
         DS-->>W: telemetry frame (PX4 + agent log + กล่อง)
         W->>FS: append telemetry / events / detections .jsonl
     end
-    loop พี่ต้น poll ทุก 1–5 s (ขนานกับด้านบน)
-        PT->>API: GET /jobs/{id}
-        API-->>PT: state=flying + telemetry ล่าสุด + log_tail + score_live
+    loop ทุกบรรทัดใหม่ของ telemetry.jsonl (ขนานกับด้านบน)
+        API->>FS: อ่านบรรทัดใหม่
+        API-->>PT: event: telemetry (id = เลขบรรทัด · ทุกฟิลด์)
     end
+    Note over PT,API: สายขาด → ต่อใหม่พร้อม Last-Event-ID ได้ต่อจากบรรทัดเดิม ไม่หาย ไม่ซ้ำ<br/>ทางเลือก: poll GET /jobs/{id} ทุก 1–5 s (state + telemetry ล่าสุด + log_tail + score_live)
     AG-->>DS: exit 0
     DS-->>W: agent state = stopped
     W->>DS: WS {"action":"stop"}
@@ -45,8 +50,7 @@ sequenceDiagram
     W->>DS: docker rm -f (ถ้าค้าง) + stop-website.sh
     W->>W: docker rmi เฉพาะ image ที่งานนี้ pull มา
     W->>FS: state=done
-    PT->>API: GET /jobs/{id}
-    API-->>PT: 200 {state:"done", result:{partial:false, score, files}}
-    PT->>API: GET /jobs/{id}/files/detections.mp4
+    API-->>PT: event: end {state:"done", result:{partial:false, score, files}} แล้วปิดสาย
+    PT->>API: GET /jobs/{id}/files/detections.mp4 (flight.py โหลดทุกไฟล์ลง results/<job_id>/)
     API-->>PT: video/mp4
     Note over PT,API: runner ว่างแล้ว → พี่ต้นส่งงานถัดไปจากคิวได้เลย

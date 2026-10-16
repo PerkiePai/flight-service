@@ -1,0 +1,47 @@
+flowchart TB
+    %% design.md หัวข้อ 2: flow ของหนึ่งงาน ตั้งแต่ POST จนถึง worker ว่าง
+
+    POST["POST /jobs<br/>curl · flight.py · ระบบพี่ต้น"]
+    SLOT{"ช่องรอว่าง?"}
+    R409["409 busy · 503 degraded<br/>ไม่สร้างงาน"]
+    Q[("queued<br/>รอได้ ≤ 1 งาน")]
+    S1["<b>1 precheck</b><br/>sim ว่างไหม · ที่ว่างดิสก์<br/>ขนาด image จาก manifest"]
+    SRC{"image มาทางไหน?"}
+    S2A["<b>2 pulling</b> (จาก registry)<br/>เปิดเว็บอย่างเดียว: SKIP_SIM=1 run-website.sh<br/>POST :8090/agent/pull-docker → retag submission-…<br/>ตรวจขนาดจริงหลัง pull"]
+    S2B["<b>2 loading</b> (จากไฟล์ · หัวข้อ 12)<br/>ตรวจชื่อใน archive หรือตรวจ bundle<br/>docker load หรือ build → retag submission-…<br/>ลบไฟล์อัปโหลดทันที"]
+    S3["<b>3 booting</b><br/>run-website.sh บูต Isaac Sim + PX4<br/>รอ :8080 แล้วรอ 'Ready for takeoff' · กับดัก 1"]
+    S4["<b>4 flying</b><br/>ต่อ /ws ค้างไว้ → ส่ง agent run · กับดัก 2<br/>เขียน telemetry 5 Hz + log + กล่อง ลง journal<br/>เฝ้า arming timeout + flight timeout"]
+    S5["<b>5 finalize</b> (เก็บผล · หัวข้อ 13)<br/>สร้างผลจาก journal + คลิป MP4<br/>result.json · score.json · track · panel.log"]
+    S6["<b>6 cleanup</b> · กับดัก 3, 5, 6<br/>stop agent → stop-website.sh<br/>docker rmi เฉพาะ tag ของงานนี้"]
+    END{{"done / failed / killed<br/>worker ว่าง รับงานถัดไป"}}
+    KILL["POST /jobs/{id}/kill"]
+
+    POST --> SLOT
+    SLOT -->|"เต็ม"| R409
+    SLOT -->|"ว่าง · ตอบ 202"| Q
+    Q -->|"worker หยิบงาน (ทีละงาน)"| S1
+    S1 --> SRC
+    SRC -->|"ชื่อ image"| S2A
+    SRC -->|"ไฟล์"| S2B
+    S2A --> S3
+    S2B --> S3
+    S3 -->|"PX4 พร้อม"| S4
+    S4 -->|"agent จบเอง"| S5
+    S5 --> S6
+    S6 --> END
+
+    S1 -.->|"sim_busy · disk_low<br/>image_too_large"| S5
+    S2A -.->|"pull_failed"| S5
+    S2B -.->|"archive_rejected<br/>load_failed"| S5
+    S3 -.->|"sim_boot_timeout<br/>px4_not_ready"| S5
+    S4 -.->|"agent_crashed · flight_timeout<br/>arming_timeout · ws_lost"| S5
+    KILL -.->|"หยุดขั้นที่ทำอยู่"| S5
+
+    classDef err fill:#fde2e2,stroke:#c0392b,color:#7b241c
+    classDef ok fill:#e3f6e8,stroke:#27ae60,color:#145a32
+    classDef store fill:#eef3fb,stroke:#5b7fbf,color:#1b2a4a
+    classDef caller fill:#fff4d6,stroke:#d4a017,color:#5a4300
+    class R409 err
+    class END ok
+    class Q store
+    class POST,KILL caller

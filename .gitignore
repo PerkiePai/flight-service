@@ -15,3 +15,7 @@ vendor/drone-sitl/NvStreamer-*.etli
 # map layers too big for git: copied across by hand (vendor/README.md), SHA256SUMS checks them
 vendor/maps/nt-testgs/nt_testgs.usdc
 vendor/maps/nt-testgs/Truck2.usd
+# flight.py's local copy of each job's results (wishlist 4: keep, never commit)
+results/
+# showcase agent: image tars + weights ~128 MB each, kept on disk only
+truck-showcase/

@@ -1,1 +1,0 @@
-container=/submission-run-20261005-034059 memory=25769803776 pids=1024 capdrop=[ALL] secopt=[no-new-privileges] gpus=[{"Driver":"","Count":-1,"DeviceIDs":null,"Capabilities":[["gpu"]],"Options":{}}]

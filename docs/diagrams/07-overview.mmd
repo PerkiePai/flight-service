@@ -1,7 +1,7 @@
 flowchart TB
     %% ภาพรวม flight-service: ทุกส่วนและทุกกรณีในภาพเดียว (อ่านจากบนลงล่าง)
 
-    Q[("① ระบบคิวพี่ต้น · ส่งงาน<br/>ถือคิวหลัก · เช็ก GET /healthz ว่า ready ก่อนส่ง")]
+    Q[("① ระบบคิวพี่ต้น · ส่งงาน (curl หรือ scripts/flight.py)<br/>ถือคิวหลัก · เช็ก GET /healthz ว่า ready ก่อนส่ง")]
 
     subgraph API["② flight-service API :8095 · รับงาน (POST /jobs)"]
         direction TB
@@ -25,7 +25,7 @@ flowchart TB
         LOAD["<b>loading</b><br/>image: อ่าน tag → docker load<br/>bundle: drone-sitl build"]
     end
 
-    subgraph RUN["④ Worker + drone-sitl + Isaac Sim · บิน"]
+    subgraph RUN["④ Worker + drone-sitl (vendor/) + Isaac Sim · บิน"]
         direction TB
         BOOT["<b>booting</b><br/>run-website.sh → Isaac Sim + PX4<br/>รอ 'Ready for takeoff'"]
         FLY["<b>flying</b><br/>/ws RUN → arm · takeoff · offboard<br/>→ docker run agent (จำกัด resource)<br/>telemetry 5 Hz · log · กล่อง detection"]
@@ -78,9 +78,10 @@ flowchart TB
     REC -.-> FIN
 
     %% --- พี่ต้นอ่านผล ---
-    QOUT[("⑦ ระบบคิวพี่ต้น · อ่านผล<br/>GET /jobs/{id} ระหว่างบินและหลังจบ<br/>GET /jobs/{id}/files/{name}<br/>เห็น state จบ → ส่งงานถัดไป")]
+    QOUT[("⑦ ระบบคิวพี่ต้น · ติดตามและอ่านผล<br/>ตามสด: GET /jobs/{id}/stream (SSE: state · telemetry · end)<br/>หรือ poll GET /jobs/{id} · โหลดไฟล์ GET /jobs/{id}/files/{name}<br/>flight.py ทำครบชุด · เห็น state จบ → ส่งงานถัดไป")]
     END --> QOUT
     DATA -->|"อ่านข้อมูลสด + ผล + ไฟล์"| QOUT
+    JNL -.->|"stream: ทุกบรรทัดใหม่ 5 Hz"| QOUT
 
     classDef err fill:#fde2e2,stroke:#c0392b,color:#7b241c
     classDef ok fill:#e3f6e8,stroke:#27ae60,color:#145a32

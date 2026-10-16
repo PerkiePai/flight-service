@@ -1,3 +1,5 @@
+> **ประวัติ ไม่ใช่สถานะปัจจุบัน:** เอกสารนี้เก็บไว้เป็นหลักฐานของงานที่ทำเสร็จแล้ว ไม่ได้อัปเดตตามโค้ด (เช่นยังพูดถึง `RUNNER_TOKEN` ที่ถอดแล้ว) สถานะจริงดู [../design.md](../design.md) และ [../progress.md](../progress.md)
+
 # flight-service Implementation Plan (v3 · 2026-10-05)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -3149,10 +3151,10 @@ tag นี้มีบนเครื่องก่อนเริ่มงา�
 
 - [ ] **Step 2: เช็กก่อนรัน** — `curl -sf localhost:8080/; curl -sf localhost:8090/` ต้องไม่ตอบ · `df -h /` ว่าง ≥ 40 GB
 
-- [ ] **Step 3: รอบบินเต็ม** — `./scripts/run-service.sh && ./scripts/mock-caller.sh perkiepai/truck-detector:20260929-214240 600 | tee docs/verification-run1.log`
+- [ ] **Step 3: รอบบินเต็ม** — `./scripts/run-service.sh && ./scripts/mock-caller.sh perkiepai/truck-detector:20260929-214240 600 | tee docs/evidence/verification-run1.log`
 Expected: `pulling → booting → flying → done` · `ended_by=agent partial=false` · ไฟล์ครบ 10 ตัว · trucks_found 3/3 (ผลบินเดิม 2026-09-29)
 
-- [ ] **Step 4: รอบ kill** — `KILL_AFTER_S=90 ./scripts/mock-caller.sh perkiepai/truck-detector:20260929-214240 600 | tee docs/verification-run2.log`
+- [ ] **Step 4: รอบ kill** — `KILL_AFTER_S=90 ./scripts/mock-caller.sh perkiepai/truck-detector:20260929-214240 600 | tee docs/evidence/verification-run2.log`
 Expected: response ของ kill เป็น `killed`, `ended_by=kill`, `partial=true`, มี track ~90 s · `ffprobe mock-out/<id>/detections.mp4` เล่นได้
 
 - [ ] **Step 5: ทางล้ม** — `./scripts/mock-caller.sh perkiepai/does-not-exist:0 60` → `failed / pull_failed` และ sim ปิดแล้ว

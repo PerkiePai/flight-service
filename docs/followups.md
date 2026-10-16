@@ -1,4 +1,4 @@
-# งานค้าง (follow-ups) · 2026-10-05
+# งานค้าง (follow-ups) · อัปเดต 2026-10-09
 
 ข้อเล็กที่ reviewer พบและยังไม่ได้แก้ (ทั้งหมดจัดเป็น Minor ตามผลกระทบ) · ข้อ Critical/Important แก้แล้วทั้งหมด (`234a650`, `5d368b6`)
 รายละเอียดเต็มของแต่ละข้ออยู่ในรายงานรีวิว ส่วนที่นี่คือรายการสำหรับวางแผนต่อ
@@ -25,20 +25,12 @@
 - pulling a mutable tag that already exists moves it and the new image is never removed
 - malformed DRONE_SITL_DOCKER_RUN_ARGS makes shlex.split raise inside drone-sitl tick() → ws_lost; validate in Settings.from_env
 - failed rmi results are ignored — record them in events.jsonl
-- api.md reason list lacks web_start_failed, runner_degraded, unsupported_source
 - test gaps — no API test against the real Worker; no kill during pulling/booting/finishing/cleanup; run_forever survival when run_job raises
-### client สำเร็จรูป: `scripts/flight.py`
+- `/healthz` ยังไม่บอกความพร้อมของเครื่อง (ฐานคือ `scripts/preflight.sh`) แยกไปทำทีหลัง (ตัดสินใจ 2026-10-06)
+- sim ของโปรเจกต์อื่นเปิดทับระหว่างบิน: `~/friend/.../run_ardu_isaac.sh` ใช้ `kill -9` กับทุก Isaac streaming ฆ่า sim ของเรากลางบินได้ (รอบ 0 ของ vendor, `arming_timeout`) · `sim_busy` กันได้แค่ตอนเริ่มงาน · ต้องตกลงกับเจ้าของสคริปต์หรือแยกเครื่อง
 
-ไฟล์เดียว ใช้แค่ Python 3.8+ (ไม่ต้องติดตั้งอะไร) copy ไปเครื่องผู้เรียกได้เลย · ส่งงาน → ตามสดทาง stream → ดึงไฟล์ผล → บอกผลด้วย exit code
+## ข้อเล็กอื่น (M2–M7 จาก review ส่วน B)
 
-```bash
-export FLIGHT_URL=http://127.0.0.1:8095     # ไม่ตั้งก็ได้ถ้าเรียกจากเครื่องเดียวกับ service
-
-scripts/flight.py health                                   # {"ok": true, "ready": true, ...}  exit 0 = ส่งงานได้
-scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600 --out results
-scripts/flight.py run --file agent.tar --kind image --name my-agent      # ส่งไฟล์แทนชื่อ image (bundle: --kind bundle)
-scripts/flight.py watch j-20261005-033950-b5fa --out results             # กลับมาตามงานเดิม เช่นหลัง client ถูกปิด
-scripts/flight.py kill j-20261005-033950-b5fa
 - M2 load-time disk check undercounts docker load peak (~3x) and is not re-checked when a queued upload starts
 - M3 failure between receive and submit leaves a QUEUED job holding the slot (needs a restart)
 - M4 drone-sitl keeps every bundle in logs/docker-agents forever; Dockerfile FROM can pull an untracked base image; a killed bundle build may tag later

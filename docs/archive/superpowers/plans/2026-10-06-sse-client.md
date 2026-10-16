@@ -1,3 +1,5 @@
+> **ประวัติ ไม่ใช่สถานะปัจจุบัน:** เอกสารนี้เก็บไว้เป็นหลักฐานของงานที่ทำเสร็จแล้ว ไม่ได้อัปเดตตามโค้ด (เช่นยังพูดถึง `RUNNER_TOKEN` ที่ถอดแล้ว) สถานะจริงดู [../design.md](../../../design.md) และ [../progress.md](../../../progress.md)
+
 # Stream สด (SSE) + client `flight.py` Implementation Plan (2026-10-06)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -26,7 +28,7 @@
 ## Global Constraints
 
 - branch ใหม่ `feat/sse-client` แตกจาก `feat/vendor-drone-sitl` (HEAD `c9a7fab`) · ไม่ merge / ไม่ push (เจ้าของจัดการเอง)
-- working tree มีไฟล์ untracked ของงาน vendor (`docs/verification-vendor-*`, `docs/superpowers/plans/2026-10-06-vendor-drone-sitl.md`) ที่**ไม่ใช่ของแผนนี้**: ใช้ `git add <path>` ตามที่แต่ละ Task ระบุเท่านั้น **ห้าม `git add -A` / `git add .` / `git commit -a`**
+- working tree มีไฟล์ untracked ของงาน vendor (`docs/evidence/verification-vendor-*`, `docs/superpowers/plans/2026-10-06-vendor-drone-sitl.md`) ที่**ไม่ใช่ของแผนนี้**: ใช้ `git add <path>` ตามที่แต่ละ Task ระบุเท่านั้น **ห้าม `git add -A` / `git add .` / `git commit -a`**
 - endpoint ใหม่: `GET /jobs/{job_id}/stream` · Bearer token เหมือนตัวอื่น · event มี 3 ชนิดเท่านั้น: `state`, `telemetry`, `end` · มีแต่ `telemetry` ที่มี `id`
 - ค่าคงที่ฝั่ง server: วนอ่านทุก `0.2` s · `: ping` ทุก `15` s · header `Cache-Control: no-cache` และ `X-Accel-Buffering: no`
 - ไม่ส่ง log ของ agent และ detections ผ่าน stream · ไม่ตัดฟิลด์ของ telemetry · ไม่จำกัดจำนวน stream ต่อ job
@@ -64,7 +66,7 @@
 | `scripts/flight.py` (ใหม่) | client: `health`, `kill` (Task 3) · `run`, `watch` (Task 4) | 3, 4 |
 | `tests/test_flight_client.py` (ใหม่) | client กับ server ปลอมบน socket จริง และกับ app จริง | 3, 4 |
 | `.gitignore` | `flight-out/` | 4 |
-| `docs/verification.md` · `docs/verification-sse-*` | ผลรันจริง | 5 |
+| `docs/verification.md` · `docs/evidence/verification-sse-*` | ผลรันจริง | 5 |
 | `README.md` · `docs/followups.md` | วิธีใช้ `flight.py` · งานที่เลื่อน | 6 |
 | `docs/progress.md` | แถวของงานนี้ + บันทึกการตัดสินใจ | 0, 2, 4, 5, 6 |
 
@@ -2057,7 +2059,7 @@ Claude-Session: https://claude.ai/code/session_01U58PizJ3sdz11yCZuVzp47"
 ### Task 5: รันจริงหนึ่งงาน + อัปโหลดไฟล์ใหญ่
 
 **Files:**
-- Create: `docs/verification-sse-preflight.log`, `docs/verification-sse-run1a.{json,log}`, `docs/verification-sse-run1b.{json,log}`, `docs/verification-sse-run2.{json,log}`, `docs/verification-sse-stream-sample.txt`
+- Create: `docs/evidence/verification-sse-preflight.log`, `docs/evidence/verification-sse-run1a.{json,log}`, `docs/evidence/verification-sse-run1b.{json,log}`, `docs/evidence/verification-sse-run2.{json,log}`, `docs/evidence/verification-sse-stream-sample.txt`
 - Modify: `docs/verification.md`, `docs/progress.md`
 
 **Interfaces:**
@@ -2070,7 +2072,7 @@ Claude-Session: https://claude.ai/code/session_01U58PizJ3sdz11yCZuVzp47"
 
 ```bash
 cd ~/pai/flight-service
-./scripts/preflight.sh | tee docs/verification-sse-preflight.log     # ต้องไม่มีข้อที่ไม่ผ่าน (exit 0)
+./scripts/preflight.sh | tee docs/evidence/verification-sse-preflight.log     # ต้องไม่มีข้อที่ไม่ผ่าน (exit 0)
 nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu --format=csv
 df -h /var/lib/docker data | tail -2                                  # ว่าง ≥ 45 GB (40 ของ MIN_FREE_GB + 2 × ไฟล์ 2 GB)
 curl -s -m 2 -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/  # 000 = sim ไม่ได้เปิด
@@ -2097,16 +2099,16 @@ Expected: `{"ok": true, "ready": true, "phase": "idle", "pending": 0}` และ
 
 ```bash
 python3 scripts/flight.py run perkiepai/truck-detector:20260929-214240 --timeout 600 --out flight-out \
-    > docs/verification-sse-run1a.json 2> docs/verification-sse-run1a.log &
+    > docs/evidence/verification-sse-run1a.json 2> docs/evidence/verification-sse-run1a.log &
 CLIENT=$!
-until grep -q "flying alt=" docs/verification-sse-run1a.log; do
+until grep -q "flying alt=" docs/evidence/verification-sse-run1a.log; do
     kill -0 $CLIENT 2>/dev/null || { echo "client ended before flying"; break; }
     sleep 2
 done
 sleep 30                                        # ให้ได้ตำแหน่งสัก 6 บรรทัด
 kill -TERM $CLIENT; wait $CLIENT; echo "exit=$?"
-cat docs/verification-sse-run1a.json
-JOB=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["job_id"])' docs/verification-sse-run1a.json)
+cat docs/evidence/verification-sse-run1a.json
+JOB=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["job_id"])' docs/evidence/verification-sse-run1a.json)
 curl -s "$FLIGHT_URL/jobs/$JOB" -H "$A" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])'
 ```
 
@@ -2123,8 +2125,8 @@ Expected:
 - [ ] **Step 4: ระหว่างงานยังบิน: เก็บตัวอย่าง stream ดิบ**
 
 ```bash
-timeout 4 curl -sN "$FLIGHT_URL/jobs/$JOB/stream" -H "$A" | head -c 4000 > docs/verification-sse-stream-sample.txt
-head -c 600 docs/verification-sse-stream-sample.txt
+timeout 4 curl -sN "$FLIGHT_URL/jobs/$JOB/stream" -H "$A" | head -c 4000 > docs/evidence/verification-sse-stream-sample.txt
+head -c 600 docs/evidence/verification-sse-stream-sample.txt
 ```
 
 Expected: ขึ้นต้นด้วย `event: state` + `data: {"state":"flying",...}` ตามด้วย `id: 1` / `event: telemetry` / `data: {...}`
@@ -2133,8 +2135,8 @@ Expected: ขึ้นต้นด้วย `event: state` + `data: {"state":"fl
 
 ```bash
 python3 scripts/flight.py watch "$JOB" --out flight-out \
-    > docs/verification-sse-run1b.json 2> docs/verification-sse-run1b.log; echo "exit=$?"
-cat docs/verification-sse-run1b.json; tail -4 docs/verification-sse-run1b.log
+    > docs/evidence/verification-sse-run1b.json 2> docs/evidence/verification-sse-run1b.log; echo "exit=$?"
+cat docs/evidence/verification-sse-run1b.json; tail -4 docs/evidence/verification-sse-run1b.log
 ```
 
 Expected: บรรทัดตำแหน่งทุก ~5 s จนจบ → `state done` (หรือ `failed`) → บรรทัดสรุป `...; score ...; flew ...s; files in flight-out/j-...` · `exit=0` เมื่อ JSON มี `"state": "done"` · `exit=1` เมื่อ `failed` / `killed` · `"not_downloaded": []`
@@ -2163,9 +2165,9 @@ Expected: ทุกไฟล์ `same` ไม่มี `DIFF` · ไม่มี
 ```bash
 truncate -s 2G /tmp/flight-junk.tar
 /usr/bin/time -v python3 scripts/flight.py run --file /tmp/flight-junk.tar --kind image --name junk --out flight-out \
-    > docs/verification-sse-run2.json 2> docs/verification-sse-run2.log; echo "exit=$?"
-cat docs/verification-sse-run2.json
-grep -E "uploading|state |Maximum resident set size|Elapsed \(wall clock\)" docs/verification-sse-run2.log
+    > docs/evidence/verification-sse-run2.json 2> docs/evidence/verification-sse-run2.log; echo "exit=$?"
+cat docs/evidence/verification-sse-run2.json
+grep -E "uploading|state |Maximum resident set size|Elapsed \(wall clock\)" docs/evidence/verification-sse-run2.log
 rm -f /tmp/flight-junk.tar
 ls data/uploads/ | wc -l                                              # 0: service ลบไฟล์ที่รับมาแล้ว
 curl -s "$FLIGHT_URL/healthz"
@@ -2175,12 +2177,12 @@ Expected: `exit=1` · JSON `"state": "failed", "reason": "archive_rejected"` · 
 
 - [ ] **Step 8: บันทึกผลใน `docs/verification.md`**
 
-ต่อท้ายไฟล์ด้วยหัวข้อใหม่ ใส่ค่าจริงจากไฟล์ `docs/verification-sse-*` แทนทุก `<...>` (ห้ามใส่ค่าที่ไม่ได้วัด ถ้าขั้นไหนไม่ผ่านให้เขียนว่าไม่ผ่านพร้อมข้อความจริง):
+ต่อท้ายไฟล์ด้วยหัวข้อใหม่ ใส่ค่าจริงจากไฟล์ `docs/evidence/verification-sse-*` แทนทุก `<...>` (ห้ามใส่ค่าที่ไม่ได้วัด ถ้าขั้นไหนไม่ผ่านให้เขียนว่าไม่ผ่านพร้อมข้อความจริง):
 
 ```markdown
 ## Stream สด (SSE) + client `flight.py` · 2026-10-06
 
-> **สรุป: <ผ่าน / ไม่ผ่าน ข้อไหน>** · flight-service `feat/sse-client` @ `<git rev-parse --short HEAD>` · ผู้เรียก: `scripts/flight.py` บนเครื่องเดียวกัน · log ดิบ: `docs/verification-sse-*`
+> **สรุป: <ผ่าน / ไม่ผ่าน ข้อไหน>** · flight-service `feat/sse-client` @ `<git rev-parse --short HEAD>` · ผู้เรียก: `scripts/flight.py` บนเครื่องเดียวกัน · log ดิบ: `docs/evidence/verification-sse-*`
 
 | รอบ | ทำอะไร | ผล |
 |---|---|---|
@@ -2199,9 +2201,9 @@ Expected: `exit=1` · JSON `"state": "failed", "reason": "archive_rejected"` · 
 คอลัมน์สถานะ → `🟡 รันจริงแล้ว (<ผ่าน / ไม่ผ่าน>: docs/verification.md) · ⛔ รออนุมัติก่อน Task 6`
 
 ```bash
-git add docs/verification.md docs/progress.md docs/verification-sse-preflight.log docs/verification-sse-stream-sample.txt \
-        docs/verification-sse-run1a.json docs/verification-sse-run1a.log docs/verification-sse-run1b.json \
-        docs/verification-sse-run1b.log docs/verification-sse-run2.json docs/verification-sse-run2.log
+git add docs/verification.md docs/progress.md docs/evidence/verification-sse-preflight.log docs/evidence/verification-sse-stream-sample.txt \
+        docs/evidence/verification-sse-run1a.json docs/evidence/verification-sse-run1a.log docs/evidence/verification-sse-run1b.json \
+        docs/evidence/verification-sse-run1b.log docs/evidence/verification-sse-run2.json docs/evidence/verification-sse-run2.log
 git commit -m "docs: real run of the SSE stream and flight.py
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
