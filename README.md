@@ -71,11 +71,15 @@ repo นี้พก drone-sitl ส่วนที่ใช้มาด้วย
 ## เปิด / ปิด
 
 ```bash
-./scripts/run-service.sh      # เปิดเบื้องหลัง · pid → run/service.pid · log → logs/service.console
-./scripts/stop-service.sh     # ปิดด้วย pid (SIGTERM)
+./scripts/run-service.sh                # เปิด API เบื้องหลัง · pid → run/service.pid · log → logs/service.console
+./scripts/stop-service.sh               # ปิด API ด้วย pid (SIGTERM)
+vendor/drone-sitl/sim/run-website.sh    # เปิด Isaac Sim + PX4 และหน้าเว็บ :8090 (รันซ้ำได้ เปิดเฉพาะที่ยังไม่ขึ้น)
+vendor/drone-sitl/sim/stop-website.sh   # ปิดเฉพาะ sim ของ repo นี้ ไม่แตะ sim ของคนอื่น
 ```
 
-- ปิดระหว่างมีงานบินอยู่ได้ งานนั้นจะไม่ถูกนับเป็น kill ตอนเปิดใหม่ service จะสร้างผลจาก journal ให้ (`failed / runner_restarted`, `partial: true`) และปิด sim ที่ค้างไว้
+- สองคำสั่งแรกคือ API (`:8095`) · สองคำสั่งหลังคือ sim ใน vendor log อยู่ที่ `vendor/drone-sitl/logs/` (`launch-sitl.console`, `joystick-server.console`)
+- ปกติไม่ต้องรัน `run-website.sh` เอง: service เปิด/ปิด sim ให้ตอนมีงาน ใช้เมื่อ sim ค้าง (งานขึ้น `sim_busy` หรือ `/healthz` เป็น `degraded`)
+- ปิด API ระหว่างมีงานบินอยู่ได้ งานนั้นจะไม่ถูกนับเป็น kill ตอนเปิดใหม่ service จะสร้างผลจาก journal ให้ (`failed / runner_restarted`, `partial: true`) และปิด sim ที่ค้างไว้
 - service ไม่ยุ่งกับ sim ที่คนอื่นเปิดค้างไว้ ถ้ามีงานเข้ามาตอนนั้นจะ fail เป็น `sim_busy`
 
 ## เรียก API
